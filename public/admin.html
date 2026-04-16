@@ -84,6 +84,7 @@
               <div class="toolbar">
                 <button id="refreshDataButton" type="button" class="button button-secondary">Refresh all</button>
                 <button id="reconcileSessionsButton" type="button" class="button button-secondary">Reconcile sessions</button>
+                <button id="backupButton" type="button" class="button button-secondary">Backup</button>
               </div>
             </div>
 
@@ -310,6 +311,28 @@
         </section>
       </section>
     </main>
+  </div>
+
+  <div id="downloadKeyModal" class="modal hidden" aria-hidden="true">
+    <div class="modal-panel panel">
+      <div class="section-head">
+        <div>
+          <p class="section-label">Backup</p>
+          <h2>Download backup</h2>
+          <p class="section-note">Enter the extra download API key to export the live backup.</p>
+        </div>
+      </div>
+
+      <form id="downloadKeyForm" class="stack-form">
+        <label class="field-label" for="downloadKeyInput">Download API key</label>
+        <input id="downloadKeyInput" type="password" autocomplete="off" placeholder="Download API key" required>
+
+        <div class="actions-row">
+          <button type="submit" class="button button-primary">Download</button>
+          <button id="cancelDownloadButton" type="button" class="button button-secondary">Cancel</button>
+        </div>
+      </form>
+    </div>
   </div>
 
   <script src="/data/js/admin.js"></script>

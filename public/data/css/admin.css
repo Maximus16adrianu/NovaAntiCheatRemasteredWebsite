@@ -469,6 +469,21 @@ textarea:focus {
   font-size: 1.6rem;
 }
 
+.modal {
+  position: fixed;
+  inset: 0;
+  z-index: 40;
+  display: grid;
+  place-items: center;
+  padding: 18px;
+  background: rgba(7, 2, 12, 0.74);
+}
+
+.modal-panel {
+  width: min(100%, 520px);
+  padding: 20px;
+}
+
 .hidden {
   display: none !important;
 }

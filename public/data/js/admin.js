@@ -30,6 +30,7 @@ const elements = {
   statOpenSessions: document.getElementById("statOpenSessions"),
   refreshDataButton: document.getElementById("refreshDataButton"),
   reconcileSessionsButton: document.getElementById("reconcileSessionsButton"),
+  backupButton: document.getElementById("backupButton"),
   licenseSearch: document.getElementById("licenseSearch"),
   licensesTableBody: document.getElementById("licensesTableBody"),
   selectedLicenseSummary: document.getElementById("selectedLicenseSummary"),
@@ -69,7 +70,11 @@ const elements = {
   refreshInstancesButton: document.getElementById("refreshInstancesButton"),
   resetInstancesButton: document.getElementById("resetInstancesButton"),
   refreshSessionsButton: document.getElementById("refreshSessionsButton"),
-  sessionsTableBody: document.getElementById("sessionsTableBody")
+  sessionsTableBody: document.getElementById("sessionsTableBody"),
+  downloadKeyModal: document.getElementById("downloadKeyModal"),
+  downloadKeyForm: document.getElementById("downloadKeyForm"),
+  downloadKeyInput: document.getElementById("downloadKeyInput"),
+  cancelDownloadButton: document.getElementById("cancelDownloadButton")
 };
 
 function esc(value) {
@@ -651,12 +656,81 @@ function logout() {
   state.licenses = [];
   localStorage.removeItem(ADMIN_KEY_STORAGE);
   elements.apiKey.value = "";
+  closeDownloadKeyModal();
   resetLicenseForm();
   clearInspectorState();
   elements.licensesTableBody.innerHTML = "";
   elements.sessionsTableBody.innerHTML = "";
   showLoggedOutUi();
   showStatus(elements.authStatus, "Logged out.", "info");
+}
+
+function openDownloadKeyModal() {
+  elements.downloadKeyInput.value = "";
+  elements.downloadKeyModal.classList.remove("hidden");
+  elements.downloadKeyModal.setAttribute("aria-hidden", "false");
+  window.setTimeout(() => elements.downloadKeyInput.focus(), 0);
+}
+
+function closeDownloadKeyModal() {
+  elements.downloadKeyModal.classList.add("hidden");
+  elements.downloadKeyModal.setAttribute("aria-hidden", "true");
+  elements.downloadKeyInput.value = "";
+}
+
+async function submitBackupDownload(event) {
+  event.preventDefault();
+  clearStatus(elements.adminStatus);
+
+  if (!state.apiKey) {
+    showStatus(elements.adminStatus, "Open the admin panel first.", "error");
+    return;
+  }
+
+  const downloadKey = elements.downloadKeyInput.value.trim();
+  if (!downloadKey) {
+    showStatus(elements.adminStatus, "Download API key is required.", "error");
+    return;
+  }
+
+  setButtonBusy(elements.backupButton, true, "Preparing...");
+  closeDownloadKeyModal();
+
+  try {
+    const response = await fetch("/api/admin/backup", {
+      method: "GET",
+      headers: {
+        "x-admin-key": state.apiKey,
+        "x-download-key": downloadKey
+      }
+    });
+
+    if (!response.ok) {
+      let payload = {};
+      try {
+        payload = await response.json();
+      } catch (_error) {
+        payload = {};
+      }
+      throw new Error(payload.message || `Backup failed with status ${response.status}.`);
+    }
+
+    const blob = await response.blob();
+    const objectUrl = window.URL.createObjectURL(blob);
+    const download = document.createElement("a");
+    download.href = objectUrl;
+    download.download = `novaac-backup-${new Date().toISOString().split("T")[0]}.zip`;
+    document.body.appendChild(download);
+    download.click();
+    download.remove();
+    window.URL.revokeObjectURL(objectUrl);
+
+    showStatus(elements.adminStatus, "Backup downloaded.", "success");
+  } catch (error) {
+    showStatus(elements.adminStatus, error.message, "error");
+  } finally {
+    setButtonBusy(elements.backupButton, false, "Preparing...");
+  }
 }
 
 async function submitLicenseForm(event) {
@@ -872,6 +946,7 @@ elements.refreshDataButton.addEventListener("click", async () => {
   }
 });
 elements.reconcileSessionsButton.addEventListener("click", reconcileSessions);
+elements.backupButton.addEventListener("click", openDownloadKeyModal);
 elements.licenseSearch.addEventListener("input", renderLicenses);
 elements.licensesTableBody.addEventListener("click", handleLicenseTableClick);
 elements.refreshDevicesButton.addEventListener("click", async () => {
@@ -898,6 +973,18 @@ elements.refreshSessionsButton.addEventListener("click", async () => {
     showStatus(elements.adminStatus, "Sessions refreshed.", "info");
   } catch (error) {
     showStatus(elements.adminStatus, error.message, "error");
+  }
+});
+elements.downloadKeyForm.addEventListener("submit", submitBackupDownload);
+elements.cancelDownloadButton.addEventListener("click", closeDownloadKeyModal);
+elements.downloadKeyModal.addEventListener("click", (event) => {
+  if (event.target === elements.downloadKeyModal) {
+    closeDownloadKeyModal();
+  }
+});
+document.addEventListener("keydown", (event) => {
+  if (event.key === "Escape" && !elements.downloadKeyModal.classList.contains("hidden")) {
+    closeDownloadKeyModal();
   }
 });
 

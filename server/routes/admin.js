@@ -1,6 +1,11 @@
+const fs = require("fs");
+const path = require("path");
 const express = require("express");
+const archiver = require("archiver");
+const { config } = require("../config");
 const { adminLimiter } = require("../middleware");
-const { getAdminKeyFromRequest, requireAdmin, validateAdminKey } = require("../auth");
+const { getAdminKeyFromRequest, getDownloadKeyFromRequest, requireAdmin, validateAdminKey, validateDownloadKey } = require("../auth");
+const { getDatabase } = require("../database");
 const {
   adminResetDevices,
   adminResetInstances,
@@ -163,6 +168,66 @@ function createAdminRouter() {
       message: "Session reconciliation completed.",
       overview: getOverview()
     });
+  });
+
+  router.get("/backup", (req, res, next) => {
+    try {
+      if (!validateAdminKey(getAdminKeyFromRequest(req))) {
+        return res.status(401).json({ ok: false, message: "Invalid admin API key." });
+      }
+
+      if (!validateDownloadKey(getDownloadKeyFromRequest(req))) {
+        return res.status(401).json({ ok: false, message: "Invalid download API key." });
+      }
+
+      const database = getDatabase();
+      try {
+        database.pragma("wal_checkpoint(TRUNCATE)");
+      } catch (error) {
+        return res.status(500).json({ ok: false, message: "Failed to prepare the database for backup." });
+      }
+
+      const archiveName = `novaac-backup-${new Date().toISOString().split("T")[0]}.zip`;
+      res.setHeader("Content-Type", "application/zip");
+      res.setHeader("Content-Disposition", `attachment; filename="${archiveName}"`);
+
+      const archive = archiver("zip", {
+        zlib: { level: 9 }
+      });
+
+      archive.on("error", (error) => {
+        if (!res.headersSent) {
+          res.status(500).json({ ok: false, message: "Failed to create backup archive." });
+        } else {
+          res.destroy(error);
+        }
+      });
+
+      archive.pipe(res);
+
+      if (fs.existsSync(config.databaseDir)) {
+        archive.directory(config.databaseDir, "database");
+      }
+
+      if (fs.existsSync(config.privateDir)) {
+        archive.glob("**/*", {
+          cwd: config.privateDir,
+          dot: true,
+          ignore: ["backups/**", "backups/**/*"]
+        }, {
+          prefix: "private"
+        });
+      }
+
+      const envPath = path.join(config.rootDir, ".env");
+      if (fs.existsSync(envPath)) {
+        archive.file(envPath, { name: ".env" });
+      }
+
+      archive.finalize().catch(next);
+    } catch (error) {
+      next(error);
+    }
   });
 
   return router;
