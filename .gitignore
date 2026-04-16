@@ -1,6 +1,0 @@
-node_modules/
-database/*.db-shm
-database/*.db-wal
-private/backups/*.zip
-private/exports/*
-!private/exports/.gitkeep

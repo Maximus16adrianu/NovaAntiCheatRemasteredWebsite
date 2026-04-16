@@ -1,6 +1,7 @@
 const express = require("express");
 const { pluginLimiter, publicLimiter } = require("../middleware");
 const { pluginSecureTransportMiddleware } = require("../secure-transport");
+const { createSignedServerTimePayload } = require("../secure-transport");
 const {
   activateLicense,
   heartbeatLicenseSession,
@@ -14,6 +15,11 @@ function createApiRouter() {
   const pluginRouter = express.Router();
 
   pluginRouter.use(pluginLimiter);
+
+  pluginRouter.get("/time", (_req, res) => {
+    res.json(createSignedServerTimePayload());
+  });
+
   pluginRouter.use(pluginSecureTransportMiddleware);
 
   pluginRouter.post("/activate", (req, res, next) => {

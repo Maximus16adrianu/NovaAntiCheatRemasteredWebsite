@@ -5,6 +5,8 @@ const { HttpError, nowIso } = require("./utils");
 
 const SECURE_ALGORITHM = "NOVA-RSA-OAEP-256+A256GCM";
 const SECURE_VERSION = 1;
+const SIGNED_TIME_ALGORITHM = "NOVA-RSA-SHA256-TIME";
+const SIGNED_TIME_VERSION = 1;
 const AES_KEY_LENGTH = 32;
 const GCM_IV_LENGTH = 12;
 const GCM_TAG_LENGTH = 16;
@@ -61,6 +63,28 @@ function sendPluginJson(req, res, payload, status = 200) {
   }
 
   return res.status(status).json(payload);
+}
+
+function createSignedServerTimePayload() {
+  const keyMaterial = loadOrCreateKeyMaterial();
+  const issuedAt = nowIso();
+  const epochMillis = Date.now();
+  const signature = crypto.sign(
+    "sha256",
+    buildSignedTimePayload(issuedAt, epochMillis),
+    keyMaterial.privateKeyPem
+  );
+
+  return {
+    ok: true,
+    signed: true,
+    type: "server-time",
+    alg: SIGNED_TIME_ALGORITHM,
+    v: SIGNED_TIME_VERSION,
+    ts: issuedAt,
+    epochMillis,
+    signature: signature.toString("base64")
+  };
 }
 
 function decryptPluginEnvelope(envelope) {
@@ -168,12 +192,21 @@ function encryptPluginResponse(secureContext, payload, status = 200) {
   const cipher = crypto.createCipheriv("aes-256-gcm", secureContext.aesKey, iv);
   const ciphertext = Buffer.concat([cipher.update(plaintext), cipher.final()]);
   const authTag = cipher.getAuthTag();
+  const keyMaterial = loadOrCreateKeyMaterial();
+  const ivBase64 = iv.toString("base64");
+  const payloadBase64 = Buffer.concat([ciphertext, authTag]).toString("base64");
+  const signature = crypto.sign(
+    "sha256",
+    buildResponseSignaturePayload(SECURE_ALGORITHM, ivBase64, payloadBase64),
+    keyMaterial.privateKeyPem
+  );
 
   return {
     secure: true,
     alg: SECURE_ALGORITHM,
-    iv: iv.toString("base64"),
-    payload: Buffer.concat([ciphertext, authTag]).toString("base64")
+    iv: ivBase64,
+    payload: payloadBase64,
+    signature: signature.toString("base64")
   };
 }
 
@@ -267,7 +300,22 @@ function cleanupSeenNonces() {
   }
 }
 
+function buildResponseSignaturePayload(algorithm, ivBase64, payloadBase64) {
+  return Buffer.from(
+    `v=${SECURE_VERSION}\nalg=${algorithm}\niv=${ivBase64}\npayload=${payloadBase64}`,
+    "utf8"
+  );
+}
+
+function buildSignedTimePayload(issuedAt, epochMillis) {
+  return Buffer.from(
+    `v=${SIGNED_TIME_VERSION}\nalg=${SIGNED_TIME_ALGORITHM}\nts=${issuedAt}\nepochMillis=${epochMillis}`,
+    "utf8"
+  );
+}
+
 module.exports = {
+  createSignedServerTimePayload,
   getPluginSecureTransportInfo,
   initializePluginSecureTransport,
   pluginSecureTransportMiddleware,
