@@ -1,0 +1,317 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Nova AntiCheat | Admin</title>
+  <link rel="icon" type="image/png" href="/nova.png">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@500;700&family=Manrope:wght@400;500;700&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="/data/css/admin.css">
+</head>
+<body>
+  <div class="admin-shell">
+    <header class="admin-topbar">
+      <div class="brand-block">
+        <img class="brand-mark" src="/nova.png" alt="Nova AntiCheat logo">
+        <div>
+          <p class="eyebrow">Nova AntiCheat</p>
+          <h1>Admin</h1>
+        </div>
+      </div>
+      <div class="topbar-actions">
+        <a class="ghost-link" href="/">Open site</a>
+        <button id="logoutButton" class="button button-secondary" type="button">Logout</button>
+      </div>
+    </header>
+
+    <main class="admin-layout">
+      <section id="authPanel" class="panel auth-panel">
+        <p class="section-label">Access</p>
+        <h2>Your admin API key</h2>
+        <p class="section-note">This browser stores the key locally for this page only.</p>
+
+        <form id="loginForm" class="stack-form">
+          <label class="field-label" for="apiKey">Your admin API key</label>
+          <div class="input-row">
+            <input id="apiKey" type="password" autocomplete="current-password" placeholder="Your admin API key" required>
+            <button type="submit" class="button button-primary">Open admin</button>
+          </div>
+        </form>
+
+        <div id="authStatus" class="status-banner hidden"></div>
+      </section>
+
+      <section id="adminPanel" class="hidden">
+        <section class="stats-grid">
+          <article class="panel stat-card">
+            <span>Total licenses</span>
+            <strong id="statTotalLicenses">0</strong>
+          </article>
+          <article class="panel stat-card">
+            <span>Active licenses</span>
+            <strong id="statActiveLicenses">0</strong>
+          </article>
+          <article class="panel stat-card">
+            <span>Expired licenses</span>
+            <strong id="statExpiredLicenses">0</strong>
+          </article>
+          <article class="panel stat-card">
+            <span>Active devices</span>
+            <strong id="statActiveDevices">0</strong>
+          </article>
+          <article class="panel stat-card">
+            <span>Active instances</span>
+            <strong id="statActiveInstances">0</strong>
+          </article>
+          <article class="panel stat-card">
+            <span>Open sessions</span>
+            <strong id="statOpenSessions">0</strong>
+          </article>
+        </section>
+
+        <div id="adminStatus" class="status-banner hidden"></div>
+
+        <section class="workspace-grid">
+          <article class="panel table-panel">
+            <div class="section-head">
+              <div>
+                <p class="section-label">Licenses</p>
+                <h2>All licenses</h2>
+                <p class="section-note">Search, open, extend or delete.</p>
+              </div>
+              <div class="toolbar">
+                <button id="refreshDataButton" type="button" class="button button-secondary">Refresh all</button>
+                <button id="reconcileSessionsButton" type="button" class="button button-secondary">Reconcile sessions</button>
+              </div>
+            </div>
+
+            <div class="table-toolbar">
+              <input id="licenseSearch" class="search-input" type="search" placeholder="Search by key, user or display name">
+            </div>
+
+            <div class="table-scroll">
+              <table class="data-table">
+                <thead>
+                  <tr>
+                    <th>Key</th>
+                    <th>User</th>
+                    <th>Term</th>
+                    <th>Limits</th>
+                    <th>Status</th>
+                    <th>Price</th>
+                    <th>Actions</th>
+                  </tr>
+                </thead>
+                <tbody id="licensesTableBody"></tbody>
+              </table>
+            </div>
+          </article>
+
+          <article class="panel editor-panel">
+            <div class="section-head">
+              <div>
+                <p class="section-label">Editor</p>
+                <h2 id="licenseFormHeading">Create license</h2>
+                <p class="section-note">Set the term, slot cap and notes, then save.</p>
+              </div>
+              <div class="toolbar">
+                <button id="resetFormButton" type="button" class="button button-secondary">New license</button>
+              </div>
+            </div>
+
+            <div id="selectedLicenseSummary" class="summary-card hidden">
+              <div class="summary-item">
+                <span>Key</span>
+                <strong id="summaryKey">-</strong>
+              </div>
+              <div class="summary-item">
+                <span>User</span>
+                <strong id="summaryUser">-</strong>
+              </div>
+              <div class="summary-item">
+                <span>Term</span>
+                <strong id="summaryType">-</strong>
+              </div>
+              <div class="summary-item">
+                <span>Limits</span>
+                <strong id="summaryLimits">-</strong>
+              </div>
+              <div class="summary-item">
+                <span>Status</span>
+                <strong id="summaryStatus">-</strong>
+              </div>
+              <div class="summary-item">
+                <span>Expiry</span>
+                <strong id="summaryExpiry">-</strong>
+              </div>
+            </div>
+
+            <form id="licenseForm" class="stack-form">
+              <input id="licenseId" type="hidden">
+
+              <label class="field-label" for="licenseKeyField">License key</label>
+              <input id="licenseKeyField" type="text" autocomplete="off" spellcheck="false" placeholder="Leave empty to auto-generate">
+
+              <label class="field-label" for="customerUsernameField">Username</label>
+              <input id="customerUsernameField" type="text" autocomplete="off" spellcheck="false" placeholder="Minecraft username">
+
+              <label class="field-label" for="displayNameField">Display name</label>
+              <input id="displayNameField" type="text" autocomplete="off" spellcheck="false" placeholder="Optional internal label">
+
+              <div class="split-fields">
+                <div>
+                  <label class="field-label" for="licenseTypeField">License type</label>
+                  <select id="licenseTypeField">
+                    <option value="monthly">Monthly</option>
+                    <option value="yearly">Yearly</option>
+                    <option value="lifetime">Lifetime</option>
+                  </select>
+                </div>
+                <div>
+                  <label class="field-label">Expiry</label>
+                  <div id="expiryPreviewCard" class="preview-card">
+                    <span id="expiryPreviewLabel">Expires at</span>
+                    <strong id="expiryPreviewValue">-</strong>
+                    <p id="expiryPreviewMeta">Monthly and yearly terms set this automatically.</p>
+                  </div>
+                </div>
+              </div>
+
+              <div class="split-fields">
+                <div>
+                  <label class="field-label" for="maxSlotsField">Package size</label>
+                  <input id="maxSlotsField" type="number" min="1" max="100" value="1" required>
+                  <p class="field-help">Each +1 adds 1 HWID and 1 instance.</p>
+                </div>
+                <div>
+                  <label class="field-label" for="resetIntervalField">Reset cooldown days</label>
+                  <input id="resetIntervalField" type="number" min="1" max="365" value="30" required>
+                </div>
+              </div>
+
+              <div class="preview-card">
+                <span>Suggested price</span>
+                <strong id="pricePreviewTotal">EUR 2.00</strong>
+                <p id="pricePreviewMeta">Monthly base EUR 2.00</p>
+              </div>
+
+              <label class="field-label" for="notesField">Notes</label>
+              <textarea id="notesField" rows="5" placeholder="Optional internal notes"></textarea>
+
+              <label class="checkbox-row">
+                <input id="activeField" type="checkbox" checked>
+                <span>License active</span>
+              </label>
+
+              <div class="actions-row">
+                <button id="saveLicenseButton" type="submit" class="button button-primary">Save license</button>
+                <button id="deleteLicenseButton" type="button" class="button button-danger" disabled>Delete current</button>
+              </div>
+            </form>
+          </article>
+        </section>
+
+        <section class="detail-grid">
+          <article class="panel detail-panel">
+            <div class="section-head">
+              <div>
+                <p class="section-label">Devices</p>
+                <h2 id="devicesHeading">Devices</h2>
+                <p id="devicesSubheading" class="section-note">Open a license to inspect registered HWIDs.</p>
+              </div>
+              <div class="toolbar">
+                <button id="refreshDevicesButton" type="button" class="button button-secondary" disabled>Refresh</button>
+                <button id="resetDevicesButton" type="button" class="button button-primary" disabled>Reset selected</button>
+              </div>
+            </div>
+
+            <div class="table-scroll">
+              <table class="data-table compact-table">
+                <thead>
+                  <tr>
+                    <th>Pick</th>
+                    <th>Device</th>
+                    <th>Status</th>
+                    <th>Sessions</th>
+                    <th>Last user</th>
+                    <th>First seen</th>
+                    <th>Last seen</th>
+                    <th>HWID</th>
+                  </tr>
+                </thead>
+                <tbody id="devicesTableBody"></tbody>
+              </table>
+            </div>
+          </article>
+
+          <article class="panel detail-panel">
+            <div class="section-head">
+              <div>
+                <p class="section-label">Instances</p>
+                <h2 id="instancesHeading">Instances</h2>
+                <p id="instancesSubheading" class="section-note">Open a license to inspect registered server instances.</p>
+              </div>
+              <div class="toolbar">
+                <button id="refreshInstancesButton" type="button" class="button button-secondary" disabled>Refresh</button>
+                <button id="resetInstancesButton" type="button" class="button button-primary" disabled>Reset selected</button>
+              </div>
+            </div>
+
+            <div class="table-scroll">
+              <table class="data-table compact-table">
+                <thead>
+                  <tr>
+                    <th>Pick</th>
+                    <th>Instance</th>
+                    <th>Status</th>
+                    <th>Sessions</th>
+                    <th>Device</th>
+                    <th>Server</th>
+                    <th>First seen</th>
+                    <th>Last seen</th>
+                  </tr>
+                </thead>
+                <tbody id="instancesTableBody"></tbody>
+              </table>
+            </div>
+          </article>
+        </section>
+
+        <section class="panel sessions-panel">
+          <div class="section-head">
+            <div>
+              <p class="section-label">Sessions</p>
+              <h2>Recent sessions</h2>
+              <p class="section-note">Most recent activity across all licenses.</p>
+            </div>
+            <div class="toolbar">
+              <button id="refreshSessionsButton" type="button" class="button button-secondary">Refresh</button>
+            </div>
+          </div>
+
+          <div class="table-scroll">
+            <table class="data-table">
+              <thead>
+                <tr>
+                  <th>License</th>
+                  <th>Instance</th>
+                  <th>Device</th>
+                  <th>Server</th>
+                  <th>Status</th>
+                  <th>Heartbeat</th>
+                  <th>Close reason</th>
+                </tr>
+              </thead>
+              <tbody id="sessionsTableBody"></tbody>
+            </table>
+          </div>
+        </section>
+      </section>
+    </main>
+  </div>
+
+  <script src="/data/js/admin.js"></script>
+</body>
+</html>

@@ -1,0 +1,361 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Nova AntiCheat</title>
+  <link rel="icon" type="image/png" href="/nova.png">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@500;700&family=Manrope:wght@400;500;700&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="/data/css/site.css">
+</head>
+<body>
+  <div class="site-shell">
+    <header class="topbar">
+      <div class="brand-lockup">
+        <img class="brand-mark" src="/nova.png" alt="Nova AntiCheat logo">
+        <div>
+          <p class="eyebrow">Nova AntiCheat</p>
+          <h1>Java and Bedrock</h1>
+        </div>
+      </div>
+      <nav class="topbar-actions">
+        <a class="ghost-link" href="#checks-card">Checks</a>
+        <a class="ghost-link" href="#pricing-card">Pricing</a>
+        <a class="ghost-link" href="#buy-card">Buy</a>
+        <a class="ghost-link" href="#renew-card">Renew</a>
+        <a class="ghost-link" href="#reset-card">Reset HWID</a>
+      </nav>
+    </header>
+
+    <main class="landing-grid">
+      <section class="panel hero-card">
+        <p class="section-pill">Nova</p>
+        <h2>Private anticheat for Java and Bedrock.</h2>
+        <p class="hero-copy">
+          Java is the main focus. Bedrock support is already there too, with prediction and movement checks already running.
+        </p>
+        <div class="hero-actions">
+          <a class="button button-primary" href="#checks-card">View checks</a>
+          <a class="button button-secondary" href="https://paypal.me/Cerials" target="_blank" rel="noreferrer">Open PayPal</a>
+        </div>
+      </section>
+
+      <section id="checks-card" class="panel checks-panel">
+        <p class="section-pill">Checks</p>
+        <p class="checks-note">Click a check name to expand it.</p>
+        <div class="edition-grid">
+          <article class="edition-card">
+            <div class="edition-head">
+              <h3>Java</h3>
+              <span class="edition-tag">Main stack</span>
+            </div>
+
+            <div class="category-block">
+              <h4>Combat</h4>
+              <ul class="check-list">
+                <li><details class="check-item"><summary>Aim (A-X)</summary><div class="check-description">Looks for aim that turns too cleanly or snaps too hard.</div></details></li>
+                <li><details class="check-item"><summary>Bow Aim (A)</summary><div class="check-description">Looks for bow aim that stays too clean or locks too fast.</div></details></li>
+                <li><details class="check-item"><summary>Auto Clicker (A-T)</summary><div class="check-description">Looks for click patterns that are too steady or too repeated.</div></details></li>
+                <li><details class="check-item"><summary>Auto Block (A-F)</summary><div class="check-description">Looks for blocking and hitting at times that should not happen together.</div></details></li>
+                <li><details class="check-item"><summary>Kill Aura (A-G)</summary><div class="check-description">Looks for attack patterns that do not fit normal player input.</div></details></li>
+                <li><details class="check-item"><summary>Crystal Aura (A-C)</summary><div class="check-description">Looks for crystal actions that are too fast or too clean.</div></details></li>
+                <li><details class="check-item"><summary>Reach (A-B)</summary><div class="check-description">Looks for hits from farther away than they should be.</div></details></li>
+                <li><details class="check-item"><summary>Container Reach (A)</summary><div class="check-description">Looks for opening containers from too far away.</div></details></li>
+                <li><details class="check-item"><summary>HitBox (A)</summary><div class="check-description">Checks if the hit really lines up with the target.</div></details></li>
+                <li><details class="check-item"><summary>WTap (A)</summary><div class="check-description">Looks for repeated sprint resets around hits.</div></details></li>
+                <li><details class="check-item"><summary>AutoTotem (A)</summary><div class="check-description">Looks for totem swaps that happen too fast.</div></details></li>
+                <li><details class="check-item"><summary>Backtrack (A-B)</summary><div class="check-description">Looks for hits on old target positions instead of the real one.</div></details></li>
+                <li><details class="check-item"><summary>Combat Engine (A)</summary><div class="check-description">Builds a score over time from how someone fights.</div></details></li>
+                <li><details class="check-item"><summary>Crystal Engine (A)</summary><div class="check-description">Builds a score over time from crystal fights.</div></details></li>
+              </ul>
+            </div>
+
+            <div class="category-block">
+              <h4>Movement</h4>
+              <ul class="check-list">
+                <li><details class="check-item"><summary>Prediction (A)</summary><div class="check-description">Checks if movement matches normal vanilla physics.</div></details></li>
+                <li><details class="check-item"><summary>Motion (A-L)</summary><div class="check-description">Looks for jump and fall values that do not make sense.</div></details></li>
+                <li><details class="check-item"><summary>Player Fly (A-D)</summary><div class="check-description">Looks for staying in the air longer than normal.</div></details></li>
+                <li><details class="check-item"><summary>Elytra Fly (A-I)</summary><div class="check-description">Looks for elytra movement that is too fast or too controlled.</div></details></li>
+                <li><details class="check-item"><summary>Vehicle Fly (A-C)</summary><div class="check-description">Looks for boats and mounts leaving normal movement.</div></details></li>
+                <li><details class="check-item"><summary>Player Speed (A-E)</summary><div class="check-description">Looks for moving faster than normal for the situation.</div></details></li>
+                <li><details class="check-item"><summary>Vehicle Speed (A)</summary><div class="check-description">Looks for vehicles going faster than they should.</div></details></li>
+                <li><details class="check-item"><summary>Invalid (A-O)</summary><div class="check-description">Looks for movement states and values that do not make sense.</div></details></li>
+                <li><details class="check-item"><summary>Invalid Vehicle (A-F)</summary><div class="check-description">Checks vehicle movement that does not make sense.</div></details></li>
+                <li><details class="check-item"><summary>Jesus (A-F)</summary><div class="check-description">Looks for walking on water in ways vanilla does not allow.</div></details></li>
+                <li><details class="check-item"><summary>Sprint (A-F)</summary><div class="check-description">Looks for sprint changes that should not be possible.</div></details></li>
+                <li><details class="check-item"><summary>NoFall (A-C)</summary><div class="check-description">Looks for fake ground and missing fall damage.</div></details></li>
+                <li><details class="check-item"><summary>NoWeb (A-B)</summary><div class="check-description">Looks for moving through webs without the normal slowdown.</div></details></li>
+                <li><details class="check-item"><summary>Step (A-B)</summary><div class="check-description">Looks for stepping up higher than vanilla allows.</div></details></li>
+                <li><details class="check-item"><summary>GroundSpoof (A)</summary><div class="check-description">Looks for saying you are on ground while still in the air.</div></details></li>
+                <li><details class="check-item"><summary>Strafe (A)</summary><div class="check-description">Looks for movement control that is too strong.</div></details></li>
+                <li><details class="check-item"><summary>NoSlow (A)</summary><div class="check-description">Looks for missing slowdown while using items.</div></details></li>
+                <li><details class="check-item"><summary>NoSaddle (A)</summary><div class="check-description">Looks for ride behavior that breaks normal saddle rules.</div></details></li>
+                <li><details class="check-item"><summary>FastLadder (A)</summary><div class="check-description">Looks for climbing faster than ladders or vines should allow.</div></details></li>
+                <li><details class="check-item"><summary>AntiLevitation (A)</summary><div class="check-description">Looks for players ignoring levitation.</div></details></li>
+              </ul>
+            </div>
+
+            <div class="category-block">
+              <h4>Player</h4>
+              <ul class="check-list">
+                <li><details class="check-item"><summary>Velocity (A)</summary><div class="check-description">Looks for missing knockback or knockback that is too small.</div></details></li>
+                <li><details class="check-item"><summary>FastUse (A)</summary><div class="check-description">Looks for eating, drinking or using items too quickly.</div></details></li>
+                <li><details class="check-item"><summary>ChestStealer (A)</summary><div class="check-description">Looks for chest looting that is too fast or too clean.</div></details></li>
+                <li><details class="check-item"><summary>InventoryMove (A)</summary><div class="check-description">Looks for moving when your inventory should stop you.</div></details></li>
+                <li><details class="check-item"><summary>InventoryManager (A-B)</summary><div class="check-description">Looks for inventory actions done in an impossible order.</div></details></li>
+                <li><details class="check-item"><summary>Chat (A-C)</summary><div class="check-description">Looks for spam and automated chat.</div></details></li>
+                <li><details class="check-item"><summary>Baritone (A)</summary><div class="check-description">Looks for pathing that matches movement bots.</div></details></li>
+                <li><details class="check-item"><summary>Nuker (A)</summary><div class="check-description">Looks for block breaking that happens too fast or in the wrong order.</div></details></li>
+              </ul>
+            </div>
+
+            <div class="category-block">
+              <h4>World</h4>
+              <ul class="check-list">
+                <li><details class="check-item"><summary>Scaffold (A-G)</summary><div class="check-description">Looks for bridging that places too cleanly or too fast.</div></details></li>
+                <li><details class="check-item"><summary>FastBreak (A)</summary><div class="check-description">Looks for blocks breaking faster than they should.</div></details></li>
+                <li><details class="check-item"><summary>FastPlace (A)</summary><div class="check-description">Looks for placing blocks faster than normal.</div></details></li>
+                <li><details class="check-item"><summary>GhostHand (A)</summary><div class="check-description">Looks for breaking blocks through walls or blocked lines.</div></details></li>
+                <li><details class="check-item"><summary>AirLiquidPlace (A)</summary><div class="check-description">Looks for places where a block should not have been placeable.</div></details></li>
+                <li><details class="check-item"><summary>PositionPlace (A)</summary><div class="check-description">Looks for block places that do not match the hit position.</div></details></li>
+                <li><details class="check-item"><summary>MultiPlace (A)</summary><div class="check-description">Looks for too many block places in one moment.</div></details></li>
+                <li><details class="check-item"><summary>InvalidPlace (A-B)</summary><div class="check-description">Looks for place packets with bad or impossible data.</div></details></li>
+                <li><details class="check-item"><summary>FarPlace (A)</summary><div class="check-description">Looks for placing blocks from too far away.</div></details></li>
+                <li><details class="check-item"><summary>FabricatedPlace (A)</summary><div class="check-description">Looks for fake hit results used to place blocks.</div></details></li>
+                <li><details class="check-item"><summary>DuplicateRotPlace (A)</summary><div class="check-description">Looks for copied rotations during block placing.</div></details></li>
+              </ul>
+            </div>
+
+            <div class="category-block">
+              <h4>Packet</h4>
+              <ul class="check-list">
+                <li><details class="check-item"><summary>BadPacket (A-V)</summary><div class="check-description">Looks for packet values and states that do not make sense.</div></details></li>
+                <li><details class="check-item"><summary>PacketOrder (A-M)</summary><div class="check-description">Looks for packets sent in the wrong order.</div></details></li>
+                <li><details class="check-item"><summary>Timer (A-D)</summary><div class="check-description">Looks for clients running faster than normal.</div></details></li>
+                <li><details class="check-item"><summary>PingSpoof (A)</summary><div class="check-description">Looks for fake ping and delayed timing.</div></details></li>
+                <li><details class="check-item"><summary>Twerk (A)</summary><div class="check-description">Looks for repeated sneak spam.</div></details></li>
+              </ul>
+            </div>
+          </article>
+
+          <article class="edition-card">
+            <div class="edition-head">
+              <h3>Bedrock</h3>
+              <span class="edition-tag">Live support</span>
+            </div>
+
+            <div class="category-block">
+              <div class="category-head">
+                <h4>Combat</h4>
+                <span class="coming-tag">Coming soon</span>
+              </div>
+              <p class="category-note">Bedrock combat checks are in progress.</p>
+            </div>
+
+            <div class="category-block">
+              <h4>Movement</h4>
+              <ul class="check-list">
+                <li><details class="check-item"><summary>Prediction (A)</summary><div class="check-description">Checks if movement matches the normal model.</div></details></li>
+                <li><details class="check-item"><summary>Player Fly (A-B)</summary><div class="check-description">Looks for staying in the air too long.</div></details></li>
+                <li><details class="check-item"><summary>Player Speed (A)</summary><div class="check-description">Looks for moving too fast.</div></details></li>
+                <li><details class="check-item"><summary>Step (A-B)</summary><div class="check-description">Looks for step height above normal limits.</div></details></li>
+                <li><details class="check-item"><summary>Jesus (A)</summary><div class="check-description">Looks for walking on water.</div></details></li>
+                <li><details class="check-item"><summary>FastLadder (A)</summary><div class="check-description">Looks for climbing too fast.</div></details></li>
+              </ul>
+            </div>
+
+            <div class="category-block">
+              <h4>Packet</h4>
+              <ul class="check-list">
+                <li><details class="check-item"><summary>Timer (A)</summary><div class="check-description">Looks for fast client timing.</div></details></li>
+              </ul>
+            </div>
+          </article>
+        </div>
+      </section>
+
+      <section class="panel extras-panel">
+        <p class="section-pill">More</p>
+        <div class="extras-grid">
+          <article class="extra-card">
+            <h3>AntiBot</h3>
+            <p>Spawns a fake player and checks if it gets attacked unnaturally.</p>
+          </article>
+          <article class="extra-card">
+            <h3>Combat Test</h3>
+            <p>Gives flagged players a short combat test before action.</p>
+          </article>
+          <article class="extra-card">
+            <h3>AntiESP</h3>
+            <p>Checks if a player can somehow see another player and hides that player if not.</p>
+          </article>
+          <article class="extra-card">
+            <h3>Backtrack</h3>
+            <p>Separate backtrack checks instead of only relying on reach.</p>
+          </article>
+          <article class="extra-card">
+            <h3>Client Brand</h3>
+            <p>Checks client brand information and simple spoofing.</p>
+          </article>
+          <article class="extra-card">
+            <h3>Crash Protection</h3>
+            <p>Handles packet spam and basic crash attempts.</p>
+          </article>
+        </div>
+      </section>
+
+      <section id="pricing-card" class="panel pricing-panel">
+        <p class="section-pill">Pricing</p>
+        <div class="pricing-grid">
+          <article class="pricing-card">
+            <h3>Monthly</h3>
+            <strong>EUR 2.00</strong>
+            <p>Includes 1 HWID and 1 instance. Every extra pack is +EUR 0.50.</p>
+          </article>
+          <article class="pricing-card">
+            <h3>Yearly</h3>
+            <strong>EUR 15.00</strong>
+            <p>Includes 1 HWID and 1 instance. Every extra pack is +EUR 2.00.</p>
+          </article>
+          <article class="pricing-card">
+            <h3>Lifetime</h3>
+            <strong>EUR 30.00</strong>
+            <p>Includes 1 HWID and 1 instance. Every extra pack is +EUR 5.00.</p>
+          </article>
+          <article class="pricing-card">
+            <h3>Add-on Packs</h3>
+            <strong>+1 slot</strong>
+            <p>Each pack adds 1 HWID and 1 instance to the same license.</p>
+          </article>
+        </div>
+
+        <div class="calculator-card">
+          <div class="calculator-head">
+            <div>
+              <h3>Best license for my server</h3>
+              <p class="section-copy">Pick how many slots you need and how long you plan to use Nova. The calculator shows all totals and points to the cheapest option for that time.</p>
+            </div>
+          </div>
+
+          <div class="calculator-grid">
+            <label class="calculator-field" for="calcSlots">
+              <span>How many slots do you need?</span>
+              <input id="calcSlots" type="number" min="1" max="100" value="1">
+              <small>1 slot = 1 HWID and 1 instance.</small>
+            </label>
+
+            <label class="calculator-field" for="calcMonths">
+              <span>How many months do you plan to use it?</span>
+              <input id="calcMonths" type="number" min="1" max="120" value="12">
+              <small>Used to compare monthly, yearly and lifetime pricing.</small>
+            </label>
+          </div>
+
+          <div class="calculator-results">
+            <article class="calc-result" data-plan="monthly">
+              <h4>Monthly</h4>
+              <strong id="calcMonthlyPrice">EUR 2.00</strong>
+              <p id="calcMonthlyMeta">1 month total</p>
+            </article>
+            <article class="calc-result" data-plan="yearly">
+              <h4>Yearly</h4>
+              <strong id="calcYearlyPrice">EUR 15.00</strong>
+              <p id="calcYearlyMeta">1 year total</p>
+            </article>
+            <article class="calc-result" data-plan="lifetime">
+              <h4>Lifetime</h4>
+              <strong id="calcLifetimePrice">EUR 30.00</strong>
+              <p id="calcLifetimeMeta">One payment forever</p>
+            </article>
+          </div>
+
+          <div class="calculator-best">
+            <span class="meta-label">Best fit</span>
+            <strong id="calcBestPlan">Yearly</strong>
+            <p id="calcBestMeta">Cheapest total for a 12 month plan.</p>
+          </div>
+        </div>
+      </section>
+
+      <section id="buy-card" class="panel info-panel">
+        <p class="section-pill">Buy</p>
+        <h3>Manual payments only</h3>
+        <p class="section-copy">
+          Send the payment with PayPal Friends and Family. Put your Discord name or email in the note and say exactly what you want to buy.
+        </p>
+        <div class="info-list">
+          <div><strong>PayPal</strong><span>paypal.me/Cerials</span></div>
+          <div><strong>Examples</strong><span>Monthly +5, Yearly +5, Lifetime +2</span></div>
+          <div><strong>Delivery</strong><span>The key is sent manually through Discord or email.</span></div>
+        </div>
+        <a class="button button-primary" href="https://paypal.me/Cerials" target="_blank" rel="noreferrer">Pay with PayPal</a>
+      </section>
+
+      <section id="renew-card" class="panel info-panel">
+        <p class="section-pill">Renew</p>
+        <h3>Renewals keep the same key</h3>
+        <p class="section-copy">
+          Send the payment the same way and include your current key in the note. Add your Discord name or email and write the exact renewal you want.
+        </p>
+        <div class="info-list">
+          <div><strong>Examples</strong><span>renew monthly +5, renew yearly +2, upgrade to lifetime +1</span></div>
+          <div><strong>Key</strong><span>Always include the current license key in the note.</span></div>
+          <div><strong>Payment</strong><span>Use PayPal Friends and Family at paypal.me/Cerials.</span></div>
+        </div>
+      </section>
+
+      <section id="reset-card" class="panel reset-card">
+        <p class="section-pill">Reset HWID</p>
+        <h3>Reset selected devices</h3>
+        <p class="section-copy">
+          Load your key, review the registered devices and only reset the ones you actually want removed.
+        </p>
+
+        <form id="lookupForm" class="stack-form">
+          <label class="field-label" for="licenseKey">License key</label>
+          <div class="input-row">
+            <input id="licenseKey" name="licenseKey" type="text" autocomplete="off" spellcheck="false" placeholder="NOVA-XXXXXX-XXXXXX-XXXXXX" required>
+            <button id="lookupButton" type="submit" class="button button-primary">Lookup</button>
+          </div>
+        </form>
+
+        <div id="lookupStatus" class="status-banner hidden"></div>
+
+        <section id="lookupResult" class="lookup-result hidden">
+          <div class="license-meta">
+            <div>
+              <span class="meta-label">License</span>
+              <strong id="licenseDisplayName">-</strong>
+            </div>
+            <div>
+              <span class="meta-label">User</span>
+              <strong id="licenseUser">-</strong>
+            </div>
+            <div>
+              <span class="meta-label">Cooldown</span>
+              <strong id="resetCooldown">Ready</strong>
+            </div>
+          </div>
+
+          <div class="devices-header">
+            <h4>Registered devices</h4>
+            <span id="deviceCountChip" class="small-chip">0 devices</span>
+          </div>
+
+          <div id="devicesList" class="devices-grid"></div>
+
+          <div class="actions-row">
+            <button id="submitResetButton" type="button" class="button button-primary" disabled>Reset selected HWIDs</button>
+            <button id="clearSelectionButton" type="button" class="button button-secondary" disabled>Clear selection</button>
+          </div>
+        </section>
+      </section>
+    </main>
+  </div>
+
+  <script src="/data/js/app.js"></script>
+</body>
+</html>

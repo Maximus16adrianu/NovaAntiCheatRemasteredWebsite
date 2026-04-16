@@ -1,0 +1,17 @@
+{
+  "name": "nova-anticheat-remasterd-website",
+  "version": "1.0.0",
+  "private": true,
+  "main": "server.js",
+  "scripts": {
+    "start": "node server.js",
+    "dev": "node server.js",
+    "init-db": "node -e \"require('./server/database').initializeDatabase(); console.log('Database initialized');\""
+  },
+  "dependencies": {
+    "better-sqlite3": "^12.4.1",
+    "dotenv": "^17.2.3",
+    "express": "^5.1.0",
+    "express-rate-limit": "^8.1.0"
+  }
+}
