@@ -1,8 +1,8 @@
 const ADMIN_KEY_STORAGE = "novaac_admin_api_key";
 const PRICING = {
-  monthly: { label: "Monthly", base: 2, addon: 0.5 },
-  yearly: { label: "Yearly", base: 15, addon: 2 },
-  lifetime: { label: "Lifetime", base: 30, addon: 5 }
+  monthly: { label: "Monthly", base: 5, addon: 1 },
+  yearly: { label: "Yearly", base: 30, addon: 5 },
+  lifetime: { label: "Lifetime", base: 60, addon: 10 }
 };
 
 const state = {
@@ -138,7 +138,11 @@ function formatExpiryDate(iso) {
 }
 
 function formatMoney(value) {
-  return `EUR ${Number(value || 0).toFixed(2)}`;
+  const amount = Number(value || 0);
+  if (Number.isInteger(amount)) {
+    return `\u20AC${amount}`;
+  }
+  return `\u20AC${amount.toFixed(2).replace(/\.?0+$/, "")}`;
 }
 
 function badge(label, tone = "") {

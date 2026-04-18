@@ -22,6 +22,7 @@
       </div>
       <nav class="topbar-actions">
         <a class="ghost-link" href="#checks-card">Checks</a>
+        <a class="ghost-link" href="#versions-card">Versions</a>
         <a class="ghost-link" href="#pricing-card">Pricing</a>
         <a class="ghost-link" href="#buy-card">Buy</a>
         <a class="ghost-link" href="#renew-card">Renew</a>
@@ -38,6 +39,7 @@
         </p>
         <div class="hero-actions">
           <a class="button button-primary" href="#checks-card">View checks</a>
+          <a class="button button-secondary" href="https://www.youtube.com/@CerialNovaDev" target="_blank" rel="noreferrer">YouTube</a>
           <a class="button button-secondary" href="https://paypal.me/Cerials" target="_blank" rel="noreferrer">Open PayPal</a>
         </div>
       </section>
@@ -207,28 +209,45 @@
         </div>
       </section>
 
+      <section id="versions-card" class="panel info-panel">
+        <p class="section-pill">Supported Versions</p>
+        <h3>Built for modern servers first</h3>
+        <p class="section-copy">
+          Nova is officially tested and supported from Minecraft 1.13 to 1.21.11. Version 26.1 has already received early testing and is currently treated as experimental. Older versions down to 1.8 may work with reduced protection, but some checks are automatically disabled when they are not compatible with the server/client version.
+        </p>
+        <div class="info-list">
+          <div><strong>Officially supported</strong><span>1.13 to 1.21.11. Modern server versions are the primary tested environment.</span></div>
+          <div><strong>Experimental</strong><span>26.1 has partial early testing and is not fully guaranteed yet.</span></div>
+          <div><strong>Legacy compatibility</strong><span>1.8 to 1.12 can work on a best-effort basis with fewer checks. Nova does not claim full real-server 1.8 support because that range is not the main fully tested target.</span></div>
+        </div>
+      </section>
+
       <section id="pricing-card" class="panel pricing-panel">
         <p class="section-pill">Pricing</p>
+        <h3>Simple licensing for small and growing servers</h3>
+        <p class="section-copy">
+          Powerful protection without enterprise pricing. Nova has no player caps, no feature paywalls, and simple licensing for small and growing servers.
+        </p>
         <div class="pricing-grid">
           <article class="pricing-card">
             <h3>Monthly</h3>
-            <strong>EUR 2.00</strong>
-            <p>Includes 1 HWID and 1 instance. Every extra pack is +EUR 0.50.</p>
+            <strong>&euro;5</strong>
+            <p>Includes 1 HWID and 1 instance. Every extra package is &euro;1.</p>
           </article>
           <article class="pricing-card">
             <h3>Yearly</h3>
-            <strong>EUR 15.00</strong>
-            <p>Includes 1 HWID and 1 instance. Every extra pack is +EUR 2.00.</p>
+            <strong>&euro;30</strong>
+            <p>Includes 1 HWID and 1 instance. Every extra package is &euro;5.</p>
           </article>
           <article class="pricing-card">
             <h3>Lifetime</h3>
-            <strong>EUR 30.00</strong>
-            <p>Includes 1 HWID and 1 instance. Every extra pack is +EUR 5.00.</p>
+            <strong>&euro;60</strong>
+            <p>Includes 1 HWID and 1 instance. Every extra package is &euro;10.</p>
           </article>
           <article class="pricing-card">
             <h3>Add-on Packs</h3>
-            <strong>+1 slot</strong>
-            <p>Each pack adds 1 HWID and 1 instance to the same license.</p>
+            <strong>+1 HWID +1 instance</strong>
+            <p>Monthly &euro;1, yearly &euro;5, lifetime &euro;10 per package.</p>
           </article>
         </div>
 
@@ -257,17 +276,17 @@
           <div class="calculator-results">
             <article class="calc-result" data-plan="monthly">
               <h4>Monthly</h4>
-              <strong id="calcMonthlyPrice">EUR 2.00</strong>
+              <strong id="calcMonthlyPrice">&euro;5</strong>
               <p id="calcMonthlyMeta">1 month total</p>
             </article>
             <article class="calc-result" data-plan="yearly">
               <h4>Yearly</h4>
-              <strong id="calcYearlyPrice">EUR 15.00</strong>
+              <strong id="calcYearlyPrice">&euro;30</strong>
               <p id="calcYearlyMeta">1 year total</p>
             </article>
             <article class="calc-result" data-plan="lifetime">
               <h4>Lifetime</h4>
-              <strong id="calcLifetimePrice">EUR 30.00</strong>
+              <strong id="calcLifetimePrice">&euro;60</strong>
               <p id="calcLifetimeMeta">One payment forever</p>
             </article>
           </div>

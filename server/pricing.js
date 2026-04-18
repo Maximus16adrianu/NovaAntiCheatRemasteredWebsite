@@ -10,22 +10,22 @@ const LICENSE_TYPES = Object.freeze({
     id: "monthly",
     label: "Monthly",
     durationDays: 30,
-    basePriceEur: 2.0,
-    addonPriceEur: 0.5
+    basePriceEur: 5.0,
+    addonPriceEur: 1.0
   },
   yearly: {
     id: "yearly",
     label: "Yearly",
     durationDays: 365,
-    basePriceEur: 15.0,
-    addonPriceEur: 2.0
+    basePriceEur: 30.0,
+    addonPriceEur: 5.0
   },
   lifetime: {
     id: "lifetime",
     label: "Lifetime",
     durationDays: null,
-    basePriceEur: 30.0,
-    addonPriceEur: 5.0
+    basePriceEur: 60.0,
+    addonPriceEur: 10.0
   }
 });
 
