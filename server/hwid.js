@@ -2,10 +2,6 @@ const crypto = require("crypto");
 const { normalizeIdentifier, normalizeText, stableStringify } = require("./utils");
 
 function normalizeMachinePayload(machine = {}) {
-  const macs = Array.isArray(machine.macs)
-    ? [...new Set(machine.macs.map((entry) => normalizeIdentifier(entry)).filter(Boolean))].sort()
-    : [];
-
   return {
     hostName: normalizeIdentifier(machine.hostName || machine.hostname),
     pcName: normalizeText(machine.pcName || machine.deviceName || machine.hostName || machine.hostname, "Unknown Device"),
@@ -13,10 +9,9 @@ function normalizeMachinePayload(machine = {}) {
     osName: normalizeIdentifier(machine.osName),
     osVersion: normalizeIdentifier(machine.osVersion),
     osArch: normalizeIdentifier(machine.osArch),
+    machineId: normalizeIdentifier(machine.machineId),
     processorIdentifier: normalizeIdentifier(machine.processorIdentifier || machine.cpuId || machine.cpu),
-    availableProcessors: Number.parseInt(machine.availableProcessors || "0", 10) || 0,
-    javaVersion: normalizeIdentifier(machine.javaVersion),
-    macs
+    availableProcessors: Number.parseInt(machine.availableProcessors || "0", 10) || 0
   };
 }
 
@@ -28,10 +23,9 @@ function buildHwidFingerprint(machine = {}) {
     osName: normalized.osName,
     osVersion: normalized.osVersion,
     osArch: normalized.osArch,
+    machineId: normalized.machineId,
     processorIdentifier: normalized.processorIdentifier,
-    availableProcessors: normalized.availableProcessors,
-    javaVersion: normalized.javaVersion,
-    macs: normalized.macs
+    availableProcessors: normalized.availableProcessors
   });
 
   return {
