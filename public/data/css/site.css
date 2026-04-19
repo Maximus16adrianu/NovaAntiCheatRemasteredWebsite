@@ -996,7 +996,22 @@ input[type="number"]:focus {
 @media (min-width: 1200px) {
   .landing-grid {
     grid-template-columns: repeat(12, minmax(0, 1fr));
-    align-items: start;
+    align-items: stretch;
+  }
+
+  .checks-panel,
+  .extras-panel {
+    height: 100%;
+  }
+
+  .checks-panel {
+    display: flex;
+    flex-direction: column;
+  }
+
+  .checks-panel .compact-card-actions {
+    margin-top: auto;
+    padding-top: 16px;
   }
 
   .hero-card {
@@ -1012,11 +1027,11 @@ input[type="number"]:focus {
   }
 
   #versions-card {
-    grid-column: 1 / span 5;
+    grid-column: 1 / -1;
   }
 
   #pricing-card {
-    grid-column: 6 / span 7;
+    grid-column: 1 / -1;
   }
 
   #buy-card {
