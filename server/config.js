@@ -12,6 +12,7 @@ const config = Object.freeze({
   privateCryptoDir: path.join(ROOT_DIR, "private", "crypto"),
   privateBackupsDir: path.join(ROOT_DIR, "private", "backups"),
   privateExportsDir: path.join(ROOT_DIR, "private", "exports"),
+  privateJarsDir: path.join(ROOT_DIR, "private", "jars"),
   pluginTransportPrivateKeyPath: path.join(ROOT_DIR, "private", "crypto", "plugin-transport-private.pem"),
   pluginTransportPublicKeyPath: path.join(ROOT_DIR, "private", "crypto", "plugin-transport-public.pem"),
   pluginTransportPublicKeyExportPath: path.join(ROOT_DIR, "private", "exports", "plugin-transport-public-key.txt"),
@@ -36,6 +37,7 @@ function ensureDirectories() {
     config.privateCryptoDir,
     config.privateBackupsDir,
     config.privateExportsDir,
+    config.privateJarsDir,
     config.databaseDir
   ].forEach((directory) => {
     fs.mkdirSync(directory, { recursive: true });

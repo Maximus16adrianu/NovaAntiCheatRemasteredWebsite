@@ -7,6 +7,13 @@ const { adminLimiter } = require("../middleware");
 const { getAdminKeyFromRequest, getDownloadKeyFromRequest, requireAdmin, validateAdminKey, validateDownloadKey } = require("../auth");
 const { getDatabase } = require("../database");
 const {
+  deleteJar,
+  listAdminJars,
+  reorderJars,
+  updateJar,
+  uploadJar,
+} = require("../jars");
+const {
   adminResetDevices,
   adminResetInstances,
   createLicense,
@@ -159,6 +166,72 @@ function createAdminRouter() {
       ok: true,
       sessions: listRecentSessions(Number.parseInt(req.query.limit || "150", 10))
     });
+  });
+
+  router.get("/jars", (_req, res) => {
+    res.json({
+      ok: true,
+      jars: listAdminJars()
+    });
+  });
+
+  router.post("/jars/upload", express.raw({ type: "*/*", limit: "250mb" }), (req, res, next) => {
+    try {
+      const jar = uploadJar({
+        displayName: req.query.displayName,
+        notes: req.query.notes,
+        accessScope: req.query.accessScope,
+        originalName: req.query.originalName,
+        mimeType: req.header("content-type"),
+        buffer: req.body
+      });
+      res.status(201).json({
+        ok: true,
+        jar,
+        message: "Jar uploaded."
+      });
+    } catch (error) {
+      next(error);
+    }
+  });
+
+  router.patch("/jars/:jarId", (req, res, next) => {
+    try {
+      const jar = updateJar(Number.parseInt(req.params.jarId, 10), req.body || {});
+      res.json({
+        ok: true,
+        jar,
+        message: "Jar updated."
+      });
+    } catch (error) {
+      next(error);
+    }
+  });
+
+  router.post("/jars/reorder", (req, res, next) => {
+    try {
+      const jars = reorderJars(req.body?.orderedIds);
+      res.json({
+        ok: true,
+        jars,
+        message: "Jar order updated."
+      });
+    } catch (error) {
+      next(error);
+    }
+  });
+
+  router.delete("/jars/:jarId", (req, res, next) => {
+    try {
+      const deleted = deleteJar(Number.parseInt(req.params.jarId, 10));
+      res.json({
+        ok: true,
+        deleted,
+        message: "Jar deleted."
+      });
+    } catch (error) {
+      next(error);
+    }
   });
 
   router.post("/maintenance/reconcile", (_req, res) => {

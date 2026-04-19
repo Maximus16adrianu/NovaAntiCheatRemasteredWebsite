@@ -114,6 +114,34 @@ function initializeDatabase() {
       FOREIGN KEY (license_id) REFERENCES licenses(id) ON DELETE SET NULL,
       FOREIGN KEY (device_id) REFERENCES license_devices(id) ON DELETE SET NULL
     );
+
+    CREATE TABLE IF NOT EXISTS download_jars (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      display_name TEXT NOT NULL,
+      notes TEXT NOT NULL DEFAULT '',
+      access_scope TEXT NOT NULL DEFAULT 'buyers',
+      stored_name TEXT NOT NULL UNIQUE,
+      original_name TEXT NOT NULL DEFAULT '',
+      file_size INTEGER NOT NULL DEFAULT 0,
+      mime_type TEXT NOT NULL DEFAULT 'application/java-archive',
+      sort_order INTEGER NOT NULL DEFAULT 0,
+      created_at TEXT NOT NULL,
+      updated_at TEXT NOT NULL
+    );
+
+    CREATE TABLE IF NOT EXISTS jar_download_rate_limits (
+      ip_key TEXT PRIMARY KEY,
+      cooldown_until TEXT NOT NULL,
+      last_download_at TEXT NOT NULL,
+      last_jar_id INTEGER,
+      FOREIGN KEY (last_jar_id) REFERENCES download_jars(id) ON DELETE SET NULL
+    );
+
+    CREATE TABLE IF NOT EXISTS reset_lookup_rate_limits (
+      ip_key TEXT PRIMARY KEY,
+      cooldown_until TEXT NOT NULL,
+      last_lookup_at TEXT NOT NULL
+    );
   `);
 
   ensureColumn(db, "licenses", "license_type", "TEXT NOT NULL DEFAULT 'monthly'");
@@ -122,6 +150,11 @@ function initializeDatabase() {
   ensureColumn(db, "service_sessions", "instance_id", "INTEGER");
   ensureColumn(db, "service_sessions", "instance_hash", "TEXT NOT NULL DEFAULT ''");
   ensureColumn(db, "service_sessions", "instance_name", "TEXT NOT NULL DEFAULT ''");
+  ensureColumn(db, "download_jars", "notes", "TEXT NOT NULL DEFAULT ''");
+  ensureColumn(db, "download_jars", "access_scope", "TEXT NOT NULL DEFAULT 'buyers'");
+  ensureColumn(db, "download_jars", "original_name", "TEXT NOT NULL DEFAULT ''");
+  ensureColumn(db, "download_jars", "mime_type", "TEXT NOT NULL DEFAULT 'application/java-archive'");
+  ensureColumn(db, "download_jars", "sort_order", "INTEGER NOT NULL DEFAULT 0");
 
   db.exec(`
     CREATE INDEX IF NOT EXISTS idx_licenses_key ON licenses (license_key);
@@ -132,6 +165,7 @@ function initializeDatabase() {
     CREATE INDEX IF NOT EXISTS idx_sessions_open ON service_sessions (closed_at, license_id, device_id);
     CREATE INDEX IF NOT EXISTS idx_sessions_instance_open ON service_sessions (closed_at, instance_id);
     CREATE INDEX IF NOT EXISTS idx_audit_logs_license ON audit_logs (license_id, created_at);
+    CREATE INDEX IF NOT EXISTS idx_download_jars_sort ON download_jars (sort_order, id);
   `);
 
   return db;

@@ -1,5 +1,6 @@
 const express = require("express");
 const { pluginLimiter, publicLimiter } = require("../middleware");
+const { claimJarDownload, listPublicDownloadJars } = require("../jars");
 const { pluginSecureTransportMiddleware } = require("../secure-transport");
 const { createSignedServerTimePayload } = require("../secure-transport");
 const {
@@ -13,6 +14,23 @@ const {
 function createApiRouter() {
   const router = express.Router();
   const pluginRouter = express.Router();
+
+  function sendJarDownload(res, next, result) {
+    res.setHeader("X-Download-Cooldown-Ms", String(result.cooldownWindowMs));
+    res.setHeader("X-Download-Cooldown-Until", result.cooldownUntil);
+    res.setHeader("X-Download-Name", encodeURIComponent(result.jar.downloadName));
+
+    return res.download(result.filePath, result.jar.downloadName, (error) => {
+      if (!error) {
+        return;
+      }
+      if (!res.headersSent) {
+        next(error);
+        return;
+      }
+      console.error("[NovaAC Website] Jar download stream failed:", error);
+    });
+  }
 
   pluginRouter.use(pluginLimiter);
 
@@ -71,7 +89,11 @@ function createApiRouter() {
 
   router.post("/reset/lookup", publicLimiter, (req, res, next) => {
     try {
-      const result = lookupResetState(req.body.licenseKey);
+      const result = lookupResetState({
+        licenseKey: req.body.licenseKey,
+        username: req.body.username,
+        ipAddress: req.ip
+      });
       res.json(result);
     } catch (error) {
       next(error);
@@ -80,11 +102,44 @@ function createApiRouter() {
 
   router.post("/reset/submit", publicLimiter, (req, res, next) => {
     try {
-      const result = resetLicenseDevicesByKey(req.body.licenseKey, req.body.deviceIds);
+      const result = resetLicenseDevicesByKey(req.body.licenseKey, req.body.username, req.body.deviceIds);
       res.json({
         ...result,
         message: "Selected HWIDs were reset."
       });
+    } catch (error) {
+      next(error);
+    }
+  });
+
+  router.get("/downloads", publicLimiter, (req, res, next) => {
+    try {
+      const result = listPublicDownloadJars(req.ip);
+      res.json({
+        ok: true,
+        ...result
+      });
+    } catch (error) {
+      next(error);
+    }
+  });
+
+  router.get("/downloads/:jarId", (req, res, next) => {
+    try {
+      const result = claimJarDownload(Number.parseInt(req.params.jarId, 10), req.ip);
+      return sendJarDownload(res, next, result);
+    } catch (error) {
+      next(error);
+    }
+  });
+
+  router.post("/downloads/:jarId", publicLimiter, (req, res, next) => {
+    try {
+      const result = claimJarDownload(Number.parseInt(req.params.jarId, 10), req.ip, {
+        licenseKey: req.body?.licenseKey,
+        username: req.body?.username
+      });
+      return sendJarDownload(res, next, result);
     } catch (error) {
       next(error);
     }

@@ -1,16 +1,24 @@
 const state = {
   licenseKey: "",
-  devices: []
+  licenseUser: "",
+  devices: [],
+  downloads: [],
+  downloadLicenseKey: "",
+  downloadLicenseUser: "",
+  pendingDownloadJarId: null,
+  downloadCooldownUntil: 0,
+  downloadCooldownTimerId: null
 };
 
 const PRICING = {
   monthly: { label: "Monthly", base: 5, addon: 1 },
   yearly: { label: "Yearly", base: 30, addon: 5 },
-  lifetime: { label: "Lifetime", base: 60, addon: 10 }
+  lifetime: { label: "Lifetime", base: 75, addon: 10 }
 };
 
 const elements = {
   lookupForm: document.getElementById("lookupForm"),
+  licenseUserInput: document.getElementById("licenseUserInput"),
   licenseKey: document.getElementById("licenseKey"),
   lookupButton: document.getElementById("lookupButton"),
   lookupStatus: document.getElementById("lookupStatus"),
@@ -31,7 +39,25 @@ const elements = {
   calcLifetimePrice: document.getElementById("calcLifetimePrice"),
   calcLifetimeMeta: document.getElementById("calcLifetimeMeta"),
   calcBestPlan: document.getElementById("calcBestPlan"),
-  calcBestMeta: document.getElementById("calcBestMeta")
+  calcBestMeta: document.getElementById("calcBestMeta"),
+  openChecksButton: document.getElementById("openChecksButton"),
+  checksModal: document.getElementById("checksModal"),
+  closeChecksButton: document.getElementById("closeChecksButton"),
+  openVersionsButton: document.getElementById("openVersionsButton"),
+  versionsModal: document.getElementById("versionsModal"),
+  closeVersionsButton: document.getElementById("closeVersionsButton"),
+  openDownloadsButton: document.getElementById("openDownloadsButton"),
+  downloadsModal: document.getElementById("downloadsModal"),
+  closeDownloadsButton: document.getElementById("closeDownloadsButton"),
+  downloadsStatus: document.getElementById("downloadsStatus"),
+  downloadsCooldown: document.getElementById("downloadsCooldown"),
+  downloadsList: document.getElementById("downloadsList"),
+  downloadAccessPanel: document.getElementById("downloadAccessPanel"),
+  downloadAccessTitle: document.getElementById("downloadAccessTitle"),
+  downloadAccessForm: document.getElementById("downloadAccessForm"),
+  downloadAccessUser: document.getElementById("downloadAccessUser"),
+  downloadAccessKey: document.getElementById("downloadAccessKey"),
+  downloadAccessCancel: document.getElementById("downloadAccessCancel")
 };
 
 function showStatus(message, tone = "info") {
@@ -42,6 +68,24 @@ function showStatus(message, tone = "info") {
 function clearStatus() {
   elements.lookupStatus.className = "status-banner hidden";
   elements.lookupStatus.textContent = "";
+}
+
+function showDownloadStatus(message, tone = "info") {
+  if (!elements.downloadsStatus) {
+    return;
+  }
+
+  elements.downloadsStatus.textContent = message;
+  elements.downloadsStatus.className = `status-banner ${tone}`;
+}
+
+function clearDownloadStatus() {
+  if (!elements.downloadsStatus) {
+    return;
+  }
+
+  elements.downloadsStatus.textContent = "";
+  elements.downloadsStatus.className = "status-banner hidden";
 }
 
 function setBusy(button, busy, label) {
@@ -74,6 +118,23 @@ function formatMoney(value) {
     return `\u20AC${amount}`;
   }
   return `\u20AC${amount.toFixed(2).replace(/\.?0+$/, "")}`;
+}
+
+function formatBytes(value) {
+  const bytes = Math.max(0, Number(value || 0));
+  if (bytes < 1024) {
+    return `${bytes} B`;
+  }
+
+  const units = ["KB", "MB", "GB"];
+  let size = bytes / 1024;
+  let unitIndex = 0;
+  while (size >= 1024 && unitIndex < units.length - 1) {
+    size /= 1024;
+    unitIndex += 1;
+  }
+
+  return `${size.toFixed(size >= 100 ? 0 : 1).replace(/\.0$/, "")} ${units[unitIndex]}`;
 }
 
 function formatDuration(ms) {
@@ -201,17 +262,23 @@ async function lookupLicense(event) {
   clearStatus();
   clearResult();
 
+  const licenseUser = elements.licenseUserInput.value.trim();
   const licenseKey = elements.licenseKey.value.trim().toUpperCase();
+  if (!licenseUser) {
+    showStatus("Enter the license user first.", "error");
+    return;
+  }
   if (!licenseKey) {
     showStatus("Enter a license key first.", "error");
     return;
   }
 
+  state.licenseUser = licenseUser;
   state.licenseKey = licenseKey;
   setBusy(elements.lookupButton, true, "Looking up...");
 
   try {
-    const payload = await postJson("/api/reset/lookup", { licenseKey });
+    const payload = await postJson("/api/reset/lookup", { licenseKey, username: licenseUser });
     renderLookupResult(payload);
     showStatus("License loaded. Select the devices you want to reset.", "success");
   } catch (error) {
@@ -229,6 +296,10 @@ async function submitReset() {
     showStatus("Run a license lookup first.", "error");
     return;
   }
+  if (!state.licenseUser) {
+    showStatus("Run a license lookup first.", "error");
+    return;
+  }
   if (selectedIds.length === 0) {
     showStatus("Select at least one device to reset.", "error");
     return;
@@ -239,6 +310,7 @@ async function submitReset() {
   try {
     const payload = await postJson("/api/reset/submit", {
       licenseKey: state.licenseKey,
+      username: state.licenseUser,
       deviceIds: selectedIds
     });
     renderLookupResult(payload);
@@ -255,6 +327,348 @@ function clearSelection() {
     input.checked = false;
   });
   updateActionState();
+}
+
+function openModal(modal) {
+  if (!modal) {
+    return;
+  }
+
+  modal.classList.remove("hidden");
+  modal.setAttribute("aria-hidden", "false");
+}
+
+function closeModal(modal) {
+  if (!modal) {
+    return;
+  }
+
+  modal.classList.add("hidden");
+  modal.setAttribute("aria-hidden", "true");
+}
+
+function openChecksModal() {
+  openModal(elements.checksModal);
+}
+
+function closeChecksModal() {
+  closeModal(elements.checksModal);
+}
+
+function openVersionsModal() {
+  openModal(elements.versionsModal);
+}
+
+function closeVersionsModal() {
+  closeModal(elements.versionsModal);
+}
+
+function hasDownloadAccess() {
+  return Boolean(state.downloadLicenseUser && state.downloadLicenseKey);
+}
+
+function openDownloadAccessPanel(jar) {
+  if (!elements.downloadAccessPanel) {
+    return;
+  }
+
+  state.pendingDownloadJarId = jar?.id ?? null;
+  elements.downloadAccessTitle.textContent = `Buyer access for ${jar?.displayName || jar?.downloadName || "this jar"}`;
+  elements.downloadAccessUser.value = state.downloadLicenseUser || "";
+  elements.downloadAccessKey.value = state.downloadLicenseKey || "";
+  elements.downloadAccessPanel.classList.remove("hidden");
+  window.setTimeout(() => {
+    if (!elements.downloadAccessUser.value.trim()) {
+      elements.downloadAccessUser.focus();
+      return;
+    }
+    elements.downloadAccessKey.focus();
+  }, 0);
+}
+
+function closeDownloadAccessPanel(clearPending = true) {
+  if (!elements.downloadAccessPanel) {
+    return;
+  }
+
+  elements.downloadAccessPanel.classList.add("hidden");
+  if (clearPending) {
+    state.pendingDownloadJarId = null;
+  }
+}
+
+function getDownloadCooldownRemainingMs() {
+  return Math.max(0, state.downloadCooldownUntil - Date.now());
+}
+
+function updateDownloadCooldownUi() {
+  if (!elements.downloadsCooldown) {
+    return;
+  }
+
+  const remaining = getDownloadCooldownRemainingMs();
+  if (remaining > 0) {
+    elements.downloadsCooldown.classList.remove("hidden");
+    elements.downloadsCooldown.textContent = `You can download another jar in ${Math.ceil(remaining / 1000)} seconds.`;
+  } else {
+    elements.downloadsCooldown.classList.add("hidden");
+    elements.downloadsCooldown.textContent = "";
+  }
+
+  document.querySelectorAll("[data-download-jar-id]").forEach((button) => {
+    const isCoolingDown = remaining > 0;
+    button.disabled = isCoolingDown;
+    if (!button.dataset.defaultLabel) {
+      button.dataset.defaultLabel = button.textContent.trim();
+    }
+    button.textContent = isCoolingDown
+      ? `Wait ${Math.ceil(remaining / 1000)}s`
+      : button.dataset.defaultLabel;
+  });
+
+  if (remaining <= 0 && state.downloadCooldownTimerId != null) {
+    window.clearInterval(state.downloadCooldownTimerId);
+    state.downloadCooldownTimerId = null;
+  }
+}
+
+function setDownloadCooldown(remainingMs = 0) {
+  state.downloadCooldownUntil = remainingMs > 0 ? (Date.now() + remainingMs) : 0;
+
+  if (state.downloadCooldownTimerId != null) {
+    window.clearInterval(state.downloadCooldownTimerId);
+    state.downloadCooldownTimerId = null;
+  }
+
+  updateDownloadCooldownUi();
+
+  if (remainingMs > 0) {
+    state.downloadCooldownTimerId = window.setInterval(updateDownloadCooldownUi, 500);
+  }
+}
+
+function getDownloadAccessBadge(jar) {
+  if (jar?.requiresBuyerLicense) {
+    return '<span class="download-badge buyers">Buyers only</span>';
+  }
+  return '<span class="download-badge public">Everybody</span>';
+}
+
+function renderDownloads(jars) {
+  state.downloads = Array.isArray(jars) ? jars : [];
+
+  if (!elements.downloadsList) {
+    return;
+  }
+
+  elements.downloadsList.innerHTML = "";
+  if (state.downloads.length === 0) {
+    elements.downloadsList.innerHTML = `<div class="download-empty">No jars are available right now.</div>`;
+    updateDownloadCooldownUi();
+    return;
+  }
+
+  const fragment = document.createDocumentFragment();
+  for (const jar of state.downloads) {
+    const buttonLabel = jar.requiresBuyerLicense ? "Buyer download" : "Download";
+    const card = document.createElement("article");
+    card.className = "download-card";
+    card.innerHTML = `
+      <div class="download-card-head">
+        <div>
+          <h4>${escapeHtml(jar.displayName || jar.downloadName || jar.originalName || "Nova jar")}</h4>
+          <div class="download-card-meta">
+            ${getDownloadAccessBadge(jar)}
+            <span class="download-badge subtle">${escapeHtml(jar.originalName || jar.downloadName || "jar")}</span>
+            <span class="download-badge subtle">${escapeHtml(formatBytes(jar.fileSize || 0))}</span>
+            <span class="download-badge subtle">Updated ${escapeHtml(formatDate(jar.updatedAt))}</span>
+          </div>
+        </div>
+        <button class="button button-primary" type="button" data-download-jar-id="${jar.id}">${buttonLabel}</button>
+      </div>
+      <p>${escapeHtml(jar.notes || "Official Nova jar download.")}</p>
+    `;
+    fragment.appendChild(card);
+  }
+
+  elements.downloadsList.appendChild(fragment);
+  updateDownloadCooldownUi();
+}
+
+async function loadDownloads() {
+  const response = await fetch("/api/downloads");
+  let payload = {};
+  try {
+    payload = await response.json();
+  } catch (_error) {
+    payload = {};
+  }
+
+  if (!response.ok || payload.ok === false) {
+    throw new Error(payload.message || `Request failed with status ${response.status}`);
+  }
+
+  renderDownloads(payload.jars || []);
+  setDownloadCooldown(payload.cooldownRemainingMs || 0);
+}
+
+async function openDownloadsModal() {
+  if (!elements.downloadsModal) {
+    return;
+  }
+
+  clearDownloadStatus();
+  openModal(elements.downloadsModal);
+  renderDownloads(state.downloads);
+
+  try {
+    await loadDownloads();
+  } catch (error) {
+    showDownloadStatus(error.message, "error");
+  }
+}
+
+function closeDownloadsModal() {
+  if (!elements.downloadsModal) {
+    return;
+  }
+
+  closeDownloadAccessPanel();
+  closeModal(elements.downloadsModal);
+}
+
+function getDownloadNameFromResponse(response, fallbackName = "nova-build.jar") {
+  const encoded = response.headers.get("x-download-name");
+  if (encoded) {
+    try {
+      return decodeURIComponent(encoded);
+    } catch (_error) {
+      return encoded;
+    }
+  }
+  return fallbackName;
+}
+
+async function downloadJar(jarId, button) {
+  const jar = state.downloads.find((entry) => entry.id === jarId);
+  if (!jar) {
+    return;
+  }
+
+  clearDownloadStatus();
+  setBusy(button, true, "Preparing...");
+
+  try {
+    const accessPayload = jar.requiresBuyerLicense
+      ? {
+          licenseKey: state.downloadLicenseKey,
+          username: state.downloadLicenseUser
+        }
+      : {};
+
+    const response = await fetch(`/api/downloads/${jarId}`, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json"
+      },
+      body: JSON.stringify(accessPayload)
+    });
+    if (!response.ok) {
+      let payload = {};
+      try {
+        payload = await response.json();
+      } catch (_error) {
+        payload = {};
+      }
+
+      const remainingMs = payload?.details?.cooldownRemainingMs || 0;
+      if (remainingMs > 0) {
+        setDownloadCooldown(remainingMs);
+      }
+
+      if (response.status === 403 && jar.requiresBuyerLicense) {
+        state.downloadLicenseKey = "";
+        openDownloadAccessPanel(jar);
+      }
+      throw new Error(payload.message || `Download failed with status ${response.status}.`);
+    }
+
+    const blob = await response.blob();
+    const objectUrl = window.URL.createObjectURL(blob);
+    const download = document.createElement("a");
+    download.href = objectUrl;
+    download.download = getDownloadNameFromResponse(response, jar.downloadName || jar.originalName || "nova-build.jar");
+    document.body.appendChild(download);
+    download.click();
+    download.remove();
+    window.URL.revokeObjectURL(objectUrl);
+
+    const cooldownMs = Number.parseInt(response.headers.get("x-download-cooldown-ms") || "30000", 10);
+    setDownloadCooldown(Number.isFinite(cooldownMs) ? cooldownMs : 30_000);
+    if (jar.requiresBuyerLicense) {
+      closeDownloadAccessPanel();
+    }
+    showDownloadStatus(`${jar.displayName || jar.downloadName || "Jar"} download started.`, "success");
+  } catch (error) {
+    showDownloadStatus(error.message, "error");
+  } finally {
+    setBusy(button, false, "Preparing...");
+    updateDownloadCooldownUi();
+  }
+}
+
+function handleDownloadsClick(event) {
+  const button = event.target.closest("button[data-download-jar-id]");
+  if (!button) {
+    return;
+  }
+
+  const jarId = Number.parseInt(button.dataset.downloadJarId || "", 10);
+  if (!Number.isFinite(jarId)) {
+    return;
+  }
+
+  const jar = state.downloads.find((entry) => entry.id === jarId);
+  if (!jar) {
+    return;
+  }
+
+  if (jar.requiresBuyerLicense && !hasDownloadAccess()) {
+    clearDownloadStatus();
+    openDownloadAccessPanel(jar);
+    return;
+  }
+
+  downloadJar(jarId, button);
+}
+
+async function submitDownloadAccess(event) {
+  event.preventDefault();
+  clearDownloadStatus();
+
+  const username = elements.downloadAccessUser.value.trim();
+  const licenseKey = elements.downloadAccessKey.value.trim().toUpperCase();
+  if (!username) {
+    showDownloadStatus("Enter the license user first.", "error");
+    return;
+  }
+  if (!licenseKey) {
+    showDownloadStatus("Enter a license key first.", "error");
+    return;
+  }
+
+  const jar = state.downloads.find((entry) => entry.id === state.pendingDownloadJarId);
+  if (!jar) {
+    showDownloadStatus("Pick a buyer-only jar first.", "error");
+    closeDownloadAccessPanel();
+    return;
+  }
+
+  state.downloadLicenseUser = username;
+  state.downloadLicenseKey = licenseKey;
+
+  const button = elements.downloadsList?.querySelector(`[data-download-jar-id="${jar.id}"]`);
+  await downloadJar(jar.id, button);
 }
 
 function escapeHtml(value) {
@@ -469,6 +883,55 @@ function initAnchorScroll() {
 elements.lookupForm.addEventListener("submit", lookupLicense);
 elements.submitResetButton.addEventListener("click", submitReset);
 elements.clearSelectionButton.addEventListener("click", clearSelection);
+elements.openChecksButton?.addEventListener("click", openChecksModal);
+elements.closeChecksButton?.addEventListener("click", closeChecksModal);
+elements.openVersionsButton?.addEventListener("click", openVersionsModal);
+elements.closeVersionsButton?.addEventListener("click", closeVersionsModal);
+elements.openDownloadsButton?.addEventListener("click", () => {
+  openDownloadsModal().catch((error) => {
+    showDownloadStatus(error.message, "error");
+  });
+});
+elements.closeDownloadsButton?.addEventListener("click", closeDownloadsModal);
+elements.downloadsList?.addEventListener("click", handleDownloadsClick);
+elements.downloadAccessForm?.addEventListener("submit", (event) => {
+  submitDownloadAccess(event).catch((error) => {
+    showDownloadStatus(error.message, "error");
+  });
+});
+elements.downloadAccessCancel?.addEventListener("click", () => {
+  closeDownloadAccessPanel();
+});
+elements.downloadsModal?.addEventListener("click", (event) => {
+  if (event.target === elements.downloadsModal) {
+    closeDownloadsModal();
+  }
+});
+elements.checksModal?.addEventListener("click", (event) => {
+  if (event.target === elements.checksModal) {
+    closeChecksModal();
+  }
+});
+elements.versionsModal?.addEventListener("click", (event) => {
+  if (event.target === elements.versionsModal) {
+    closeVersionsModal();
+  }
+});
+document.addEventListener("keydown", (event) => {
+  if (event.key !== "Escape") {
+    return;
+  }
+
+  if (elements.downloadsModal && !elements.downloadsModal.classList.contains("hidden")) {
+    closeDownloadsModal();
+  }
+  if (elements.checksModal && !elements.checksModal.classList.contains("hidden")) {
+    closeChecksModal();
+  }
+  if (elements.versionsModal && !elements.versionsModal.classList.contains("hidden")) {
+    closeVersionsModal();
+  }
+});
 if (elements.calcSlots && elements.calcMonths) {
   [elements.calcSlots, elements.calcMonths].forEach((input) => {
     input.addEventListener("input", updatePricingCalculator);

@@ -214,6 +214,61 @@
           </article>
         </section>
 
+        <section class="panel jar-panel">
+          <div class="section-head">
+            <div>
+              <p class="section-label">Downloads</p>
+              <h2>Jar manager</h2>
+              <p class="section-note">Upload jars, choose whether they are public or buyer-only, then drag them to choose the order shown on the main page.</p>
+            </div>
+          </div>
+
+          <div class="jar-grid">
+            <form id="jarUploadForm" class="panel jar-upload-card stack-form">
+              <div>
+                <label class="field-label" for="jarFileField">Jar file</label>
+                <input id="jarFileField" type="file" accept=".jar,application/java-archive,application/octet-stream" required>
+                <p class="field-help">Each upload stores the jar inside the private server folder.</p>
+              </div>
+
+              <div>
+                <label class="field-label" for="jarNameField">Public name</label>
+                <input id="jarNameField" type="text" autocomplete="off" spellcheck="false" placeholder="Nova 1.21.11 Build">
+              </div>
+
+              <div>
+                <label class="field-label" for="jarNoteField">Public note</label>
+                <textarea id="jarNoteField" rows="4" placeholder="Optional note shown in the public download list"></textarea>
+              </div>
+
+              <div>
+                <label class="field-label" for="jarAccessField">Download access</label>
+                <select id="jarAccessField">
+                  <option value="buyers" selected>Buyers only</option>
+                  <option value="public">Everybody</option>
+                </select>
+                <p class="field-help">Buyers only is the default. Public jars can be downloaded without a license.</p>
+              </div>
+
+              <div class="actions-row">
+                <button id="uploadJarButton" type="submit" class="button button-primary">Upload jar</button>
+              </div>
+            </form>
+
+            <div class="jar-manager-card">
+              <div class="jar-manager-head">
+                <div>
+                  <h3>Uploaded jars</h3>
+                  <p class="section-note">Drag cards to reorder them. The first card appears first in the public download modal.</p>
+                </div>
+                <span id="jarCountChip" class="jar-count-chip">0 jars</span>
+              </div>
+
+              <div id="jarList" class="jar-list"></div>
+            </div>
+          </div>
+        </section>
+
         <section class="detail-grid">
           <article class="panel detail-panel">
             <div class="section-head">

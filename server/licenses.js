@@ -1,3 +1,4 @@
+const crypto = require("crypto");
 const { config } = require("./config");
 const { getDatabase } = require("./database");
 const { buildHwidFingerprint } = require("./hwid");
@@ -32,6 +33,8 @@ const {
   safeJsonParse
 } = require("./utils");
 
+const RESET_LOOKUP_COOLDOWN_MS = 10_000;
+
 const LICENSE_SELECT = `
   SELECT l.*,
          (SELECT COUNT(*) FROM license_devices d WHERE d.license_id = l.id AND d.active = 1) AS active_device_count,
@@ -44,6 +47,62 @@ const LICENSE_SELECT = `
          (SELECT COUNT(*) FROM service_sessions s WHERE s.license_id = l.id AND s.closed_at IS NULL) AS open_session_count
     FROM licenses l
 `;
+
+function normalizeIpAddress(ipAddress) {
+  const raw = normalizeText(ipAddress, "unknown");
+  if (!raw) {
+    return "unknown";
+  }
+  if (raw === "::1") {
+    return "127.0.0.1";
+  }
+  return raw.startsWith("::ffff:") ? raw.slice(7) : raw;
+}
+
+function hashIpAddress(ipAddress) {
+  return crypto.createHash("sha256").update(normalizeIpAddress(ipAddress)).digest("hex");
+}
+
+function claimResetLookupAttempt(ipAddress) {
+  const database = getDatabase();
+  const ipKey = hashIpAddress(ipAddress);
+  const now = Date.now();
+  const cooldownUntil = new Date(now + RESET_LOOKUP_COOLDOWN_MS).toISOString();
+  const timestamp = new Date(now).toISOString();
+
+  database.transaction(() => {
+    const existing = database.prepare(`
+      SELECT cooldown_until
+        FROM reset_lookup_rate_limits
+       WHERE ip_key = ?
+    `).get(ipKey);
+
+    const remaining = existing?.cooldown_until ? (Date.parse(existing.cooldown_until) - now) : 0;
+    if (remaining > 0) {
+      throw new HttpError(429, `You can look up another license in ${Math.ceil(remaining / 1000)} seconds.`, {
+        cooldownRemainingMs: remaining,
+        cooldownWindowMs: RESET_LOOKUP_COOLDOWN_MS
+      });
+    }
+
+    if (existing) {
+      database.prepare(`
+        UPDATE reset_lookup_rate_limits
+           SET cooldown_until = ?,
+               last_lookup_at = ?
+         WHERE ip_key = ?
+      `).run(cooldownUntil, timestamp, ipKey);
+    } else {
+      database.prepare(`
+        INSERT INTO reset_lookup_rate_limits (
+          ip_key,
+          cooldown_until,
+          last_lookup_at
+        ) VALUES (?, ?, ?)
+      `).run(ipKey, cooldownUntil, timestamp);
+    }
+  })();
+}
 
 function serializeLicense(row) {
   if (!row) {
@@ -150,6 +209,25 @@ function getLicenseByKey(licenseKey) {
 
 function getLicenseById(licenseId) {
   return getDatabase().prepare(`${LICENSE_SELECT} WHERE l.id = ?`).get(licenseId);
+}
+
+function getSelfServiceResetLicense(licenseKey, username) {
+  const license = getLicenseByKey(licenseKey);
+  const normalizedUsername = normalizeIdentifier(username);
+
+  if (!normalizedUsername) {
+    throw new HttpError(400, "Enter the license user.");
+  }
+
+  if (!license || !license.customer_username || normalizeIdentifier(license.customer_username) !== normalizedUsername) {
+    throw new HttpError(404, "License key and user do not match.");
+  }
+
+  if (!license.active) {
+    throw new HttpError(403, "This license is disabled.");
+  }
+
+  return license;
 }
 
 function assertLicenseForActivation(license) {
@@ -798,16 +876,13 @@ function shutdownLicenseSession(payload = {}) {
   return { ok: true, message: "Shutdown stored." };
 }
 
-function lookupResetState(licenseKey) {
+function lookupResetState({ licenseKey, username, ipAddress } = {}) {
+  if (ipAddress !== undefined && ipAddress !== null) {
+    claimResetLookupAttempt(ipAddress);
+  }
   reconcileSessions();
 
-  const license = getLicenseByKey(licenseKey);
-  if (!license) {
-    throw new HttpError(404, "Unknown license key.");
-  }
-  if (!license.active) {
-    throw new HttpError(403, "This license is disabled.");
-  }
+  const license = getSelfServiceResetLicense(licenseKey, username);
 
   const devices = listLicenseDevices(license.id).filter((device) => device.active);
   const nextResetAt = license.next_reset_at || null;
@@ -918,7 +993,11 @@ function resetLicenseDevices(license, deviceIds = [], options = {}) {
     });
   }
 
-  return lookupResetState(license.license_key);
+  return lookupResetState({
+    licenseKey: license.license_key,
+    username: license.customer_username,
+    ipAddress: null
+  });
 }
 
 function resetLicenseInstances(license, instanceIds = [], options = {}) {
@@ -991,8 +1070,8 @@ function resetLicenseInstances(license, instanceIds = [], options = {}) {
   };
 }
 
-function resetLicenseDevicesByKey(licenseKey, deviceIds = []) {
-  const license = getLicenseByKey(licenseKey);
+function resetLicenseDevicesByKey(licenseKey, username, deviceIds = []) {
+  const license = getSelfServiceResetLicense(licenseKey, username);
   return resetLicenseDevices(license, deviceIds, {
     actor: "self_service",
     closeReason: "user_reset",

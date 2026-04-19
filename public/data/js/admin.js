@@ -2,15 +2,17 @@ const ADMIN_KEY_STORAGE = "novaac_admin_api_key";
 const PRICING = {
   monthly: { label: "Monthly", base: 5, addon: 1 },
   yearly: { label: "Yearly", base: 30, addon: 5 },
-  lifetime: { label: "Lifetime", base: 60, addon: 10 }
+  lifetime: { label: "Lifetime", base: 75, addon: 10 }
 };
 
 const state = {
   apiKey: localStorage.getItem(ADMIN_KEY_STORAGE) || "",
   licenses: [],
+  jars: [],
   selectedLicenseId: null,
   selectedDevices: new Set(),
   selectedInstances: new Set(),
+  draggingJarId: null,
   formLicense: null
 };
 
@@ -59,6 +61,14 @@ const elements = {
   saveLicenseButton: document.getElementById("saveLicenseButton"),
   deleteLicenseButton: document.getElementById("deleteLicenseButton"),
   resetFormButton: document.getElementById("resetFormButton"),
+  jarUploadForm: document.getElementById("jarUploadForm"),
+  jarFileField: document.getElementById("jarFileField"),
+  jarNameField: document.getElementById("jarNameField"),
+  jarNoteField: document.getElementById("jarNoteField"),
+  jarAccessField: document.getElementById("jarAccessField"),
+  uploadJarButton: document.getElementById("uploadJarButton"),
+  jarList: document.getElementById("jarList"),
+  jarCountChip: document.getElementById("jarCountChip"),
   devicesHeading: document.getElementById("devicesHeading"),
   devicesSubheading: document.getElementById("devicesSubheading"),
   devicesTableBody: document.getElementById("devicesTableBody"),
@@ -143,6 +153,23 @@ function formatMoney(value) {
     return `\u20AC${amount}`;
   }
   return `\u20AC${amount.toFixed(2).replace(/\.?0+$/, "")}`;
+}
+
+function formatBytes(value) {
+  const bytes = Math.max(0, Number(value || 0));
+  if (bytes < 1024) {
+    return `${bytes} B`;
+  }
+
+  const units = ["KB", "MB", "GB"];
+  let size = bytes / 1024;
+  let unitIndex = 0;
+  while (size >= 1024 && unitIndex < units.length - 1) {
+    size /= 1024;
+    unitIndex += 1;
+  }
+
+  return `${size.toFixed(size >= 100 ? 0 : 1).replace(/\.0$/, "")} ${units[unitIndex]}`;
 }
 
 function badge(label, tone = "") {
@@ -501,6 +528,297 @@ function renderSessions(sessions) {
   elements.sessionsTableBody.appendChild(fragment);
 }
 
+function resetJarUploadForm() {
+  if (!elements.jarUploadForm) {
+    return;
+  }
+
+  elements.jarUploadForm.reset();
+}
+
+function renderJars() {
+  if (!elements.jarList || !elements.jarCountChip) {
+    return;
+  }
+
+  state.draggingJarId = null;
+  const jars = Array.isArray(state.jars) ? state.jars : [];
+  elements.jarCountChip.textContent = `${jars.length} jar${jars.length === 1 ? "" : "s"}`;
+  elements.jarList.innerHTML = "";
+
+  if (jars.length === 0) {
+    elements.jarList.innerHTML = `<div class="empty-jar-list">No jars uploaded yet.</div>`;
+    return;
+  }
+
+  const fragment = document.createDocumentFragment();
+  jars.forEach((jar, index) => {
+    const item = document.createElement("article");
+    item.className = "jar-item";
+    item.draggable = true;
+    item.dataset.jarId = String(jar.id);
+    item.innerHTML = `
+      <div class="jar-item-head">
+        <div>
+          <strong>${esc(jar.originalName || jar.downloadName || jar.displayName || "Jar")}</strong>
+          <small>${esc(formatBytes(jar.fileSize || 0))} | Updated ${esc(formatDate(jar.updatedAt))}</small>
+        </div>
+        <div class="jar-item-badges">
+          <span class="jar-access-badge ${jar.accessScope === "public" ? "public" : "buyers"}">${esc(jar.accessLabel || "Buyers only")}</span>
+          <span class="drag-badge">Drag to reorder</span>
+          <span class="order-badge">#${index + 1}</span>
+        </div>
+      </div>
+      <div class="jar-item-fields">
+        <label>
+          <span>Public name</span>
+          <input class="jar-name-input" type="text" value="${esc(jar.displayName || "")}" autocomplete="off" spellcheck="false">
+        </label>
+        <label>
+          <span>Public note</span>
+          <textarea class="jar-note-input" rows="3" spellcheck="false">${esc(jar.notes || "")}</textarea>
+        </label>
+        <label>
+          <span>Download access</span>
+          <select class="jar-access-input">
+            <option value="buyers"${jar.accessScope === "buyers" ? " selected" : ""}>Buyers only</option>
+            <option value="public"${jar.accessScope === "public" ? " selected" : ""}>Everybody</option>
+          </select>
+        </label>
+      </div>
+      <div class="actions-row">
+        <button class="mini-button primary" type="button" data-action="save-jar" data-jar-id="${jar.id}">Save</button>
+        <button class="mini-button danger" type="button" data-action="delete-jar" data-jar-id="${jar.id}">Delete jar</button>
+      </div>
+    `;
+    fragment.appendChild(item);
+  });
+
+  elements.jarList.appendChild(fragment);
+}
+
+async function loadJars() {
+  if (!elements.jarList) {
+    return;
+  }
+
+  const payload = await adminRequest("/api/admin/jars");
+  state.jars = payload.jars || [];
+  renderJars();
+}
+
+async function uploadJarFromForm(event) {
+  event.preventDefault();
+  clearStatus(elements.adminStatus);
+
+  const file = elements.jarFileField?.files?.[0];
+  if (!file) {
+    showStatus(elements.adminStatus, "Choose a jar file first.", "error");
+    return;
+  }
+
+  const displayName = elements.jarNameField.value.trim() || file.name.replace(/\.jar$/i, "");
+  const notes = elements.jarNoteField.value.trim();
+  const accessScope = elements.jarAccessField.value || "buyers";
+  const query = new URLSearchParams({
+    displayName,
+    notes,
+    accessScope,
+    originalName: file.name
+  });
+
+  setButtonBusy(elements.uploadJarButton, true, "Uploading...");
+
+  try {
+    const response = await fetch(`/api/admin/jars/upload?${query.toString()}`, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/octet-stream",
+        "x-admin-key": state.apiKey
+      },
+      body: file
+    });
+
+    let payload = {};
+    try {
+      payload = await response.json();
+    } catch (_error) {
+      payload = {};
+    }
+
+    if (!response.ok || payload.ok === false) {
+      throw new Error(payload.message || `Upload failed with status ${response.status}.`);
+    }
+
+    await loadJars();
+    resetJarUploadForm();
+    showStatus(elements.adminStatus, `${payload.jar?.displayName || file.name} uploaded.`, "success");
+  } catch (error) {
+    showStatus(elements.adminStatus, error.message, "error");
+  } finally {
+    setButtonBusy(elements.uploadJarButton, false, "Uploading...");
+  }
+}
+
+async function saveJar(jarId, sourceButton) {
+  const item = elements.jarList?.querySelector(`.jar-item[data-jar-id="${jarId}"]`);
+  if (!item) {
+    return;
+  }
+
+  const displayName = item.querySelector(".jar-name-input")?.value.trim() || "";
+  const notes = item.querySelector(".jar-note-input")?.value.trim() || "";
+  const accessScope = item.querySelector(".jar-access-input")?.value || "buyers";
+
+  setButtonBusy(sourceButton, true, "Saving...");
+  try {
+    await adminRequest(`/api/admin/jars/${jarId}`, {
+      method: "PATCH",
+      body: { displayName, notes, accessScope }
+    });
+    await loadJars();
+    showStatus(elements.adminStatus, "Jar details updated.", "success");
+  } catch (error) {
+    showStatus(elements.adminStatus, error.message, "error");
+  } finally {
+    setButtonBusy(sourceButton, false, "Saving...");
+  }
+}
+
+async function deleteJarById(jarId, sourceButton) {
+  const jar = state.jars.find((entry) => entry.id === jarId);
+  const label = jar?.displayName || jar?.originalName || "this jar";
+  if (!window.confirm(`Delete ${label}? This removes the stored jar file from the server.`)) {
+    return;
+  }
+
+  setButtonBusy(sourceButton, true, "Deleting...");
+  try {
+    await adminRequest(`/api/admin/jars/${jarId}`, { method: "DELETE" });
+    await loadJars();
+    showStatus(elements.adminStatus, `${label} deleted.`, "success");
+  } catch (error) {
+    showStatus(elements.adminStatus, error.message, "error");
+  } finally {
+    setButtonBusy(sourceButton, false, "Deleting...");
+  }
+}
+
+function moveJarInState(dragId, targetId, insertAfter = false) {
+  const fromIndex = state.jars.findIndex((entry) => entry.id === dragId);
+  const toIndex = state.jars.findIndex((entry) => entry.id === targetId);
+  if (fromIndex === -1 || toIndex === -1 || fromIndex === toIndex) {
+    return false;
+  }
+
+  const [moved] = state.jars.splice(fromIndex, 1);
+  const adjustedTargetIndex = state.jars.findIndex((entry) => entry.id === targetId);
+  const nextIndex = insertAfter ? adjustedTargetIndex + 1 : adjustedTargetIndex;
+  state.jars.splice(nextIndex, 0, moved);
+  return true;
+}
+
+async function persistJarOrder() {
+  await adminRequest("/api/admin/jars/reorder", {
+    method: "POST",
+    body: { orderedIds: state.jars.map((entry) => entry.id) }
+  });
+}
+
+async function handleJarListClick(event) {
+  const button = event.target.closest("button[data-action][data-jar-id]");
+  if (!button) {
+    return;
+  }
+
+  const jarId = Number.parseInt(button.dataset.jarId || "", 10);
+  if (!Number.isFinite(jarId)) {
+    return;
+  }
+
+  if (button.dataset.action === "save-jar") {
+    await saveJar(jarId, button);
+    return;
+  }
+
+  if (button.dataset.action === "delete-jar") {
+    await deleteJarById(jarId, button);
+  }
+}
+
+function handleJarDragStart(event) {
+  const item = event.target.closest(".jar-item[data-jar-id]");
+  if (!item) {
+    return;
+  }
+
+  state.draggingJarId = Number.parseInt(item.dataset.jarId || "", 10);
+  if (!Number.isFinite(state.draggingJarId)) {
+    state.draggingJarId = null;
+    return;
+  }
+
+  item.classList.add("dragging");
+  if (event.dataTransfer) {
+    event.dataTransfer.effectAllowed = "move";
+    event.dataTransfer.setData("text/plain", String(state.draggingJarId));
+  }
+}
+
+function handleJarDragOver(event) {
+  const item = event.target.closest(".jar-item[data-jar-id]");
+  if (!item) {
+    return;
+  }
+
+  event.preventDefault();
+  elements.jarList?.querySelectorAll(".jar-item.drag-over").forEach((entry) => {
+    if (entry !== item) {
+      entry.classList.remove("drag-over");
+    }
+  });
+  item.classList.add("drag-over");
+}
+
+async function handleJarDrop(event) {
+  const item = event.target.closest(".jar-item[data-jar-id]");
+  if (!item || !Number.isFinite(state.draggingJarId)) {
+    return;
+  }
+
+  event.preventDefault();
+  item.classList.remove("drag-over");
+
+  const targetId = Number.parseInt(item.dataset.jarId || "", 10);
+  if (!Number.isFinite(targetId) || targetId === state.draggingJarId) {
+    return;
+  }
+
+  const midpoint = item.getBoundingClientRect().top + (item.getBoundingClientRect().height / 2);
+  const insertAfter = event.clientY > midpoint;
+  const didMove = moveJarInState(state.draggingJarId, targetId, insertAfter);
+  if (!didMove) {
+    return;
+  }
+
+  renderJars();
+  try {
+    await persistJarOrder();
+    await loadJars();
+    showStatus(elements.adminStatus, "Jar order updated.", "success");
+  } catch (error) {
+    await loadJars();
+    showStatus(elements.adminStatus, error.message, "error");
+  }
+}
+
+function clearJarDragState() {
+  state.draggingJarId = null;
+  elements.jarList?.querySelectorAll(".jar-item").forEach((item) => {
+    item.classList.remove("dragging", "drag-over");
+  });
+}
+
 async function adminRequest(path, options = {}) {
   const headers = {
     "Content-Type": "application/json"
@@ -614,7 +932,7 @@ function syncEditedLicenseForm() {
 }
 
 async function refreshDashboard() {
-  await Promise.all([loadOverview(), loadLicenses(), loadSessions()]);
+  await Promise.all([loadOverview(), loadLicenses(), loadSessions(), loadJars()]);
   syncEditedLicenseForm();
 
   if (state.selectedLicenseId != null) {
@@ -658,13 +976,22 @@ async function onLogin(event) {
 function logout() {
   state.apiKey = "";
   state.licenses = [];
+  state.jars = [];
+  clearJarDragState();
   localStorage.removeItem(ADMIN_KEY_STORAGE);
   elements.apiKey.value = "";
   closeDownloadKeyModal();
   resetLicenseForm();
+  resetJarUploadForm();
   clearInspectorState();
   elements.licensesTableBody.innerHTML = "";
   elements.sessionsTableBody.innerHTML = "";
+  if (elements.jarList) {
+    elements.jarList.innerHTML = `<div class="empty-jar-list">No jars uploaded yet.</div>`;
+  }
+  if (elements.jarCountChip) {
+    elements.jarCountChip.textContent = "0 jars";
+  }
   showLoggedOutUi();
   showStatus(elements.authStatus, "Logged out.", "info");
 }
@@ -940,6 +1267,37 @@ elements.logoutButton.addEventListener("click", logout);
 elements.licenseForm.addEventListener("submit", submitLicenseForm);
 elements.deleteLicenseButton.addEventListener("click", deleteCurrentLicense);
 elements.resetFormButton.addEventListener("click", resetLicenseForm);
+elements.jarUploadForm?.addEventListener("submit", uploadJarFromForm);
+elements.jarList?.addEventListener("click", (event) => {
+  handleJarListClick(event).catch((error) => {
+    showStatus(elements.adminStatus, error.message, "error");
+  });
+});
+elements.jarList?.addEventListener("dragstart", handleJarDragStart);
+elements.jarList?.addEventListener("dragover", handleJarDragOver);
+elements.jarList?.addEventListener("drop", (event) => {
+  handleJarDrop(event).catch((error) => {
+    loadJars().catch(() => {});
+    showStatus(elements.adminStatus, error.message, "error");
+  });
+});
+elements.jarList?.addEventListener("dragleave", (event) => {
+  const item = event.target.closest(".jar-item[data-jar-id]");
+  if (item) {
+    item.classList.remove("drag-over");
+  }
+});
+elements.jarList?.addEventListener("dragend", clearJarDragState);
+elements.jarFileField?.addEventListener("change", () => {
+  const file = elements.jarFileField.files?.[0];
+  if (!file) {
+    return;
+  }
+
+  if (!elements.jarNameField.value.trim()) {
+    elements.jarNameField.value = file.name.replace(/\.jar$/i, "");
+  }
+});
 elements.refreshDataButton.addEventListener("click", async () => {
   clearStatus(elements.adminStatus);
   try {
