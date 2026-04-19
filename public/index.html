@@ -13,6 +13,14 @@
 <body>
   <div class="site-shell">
     <header class="topbar">
+      <button id="mobileMenuButton" class="mobile-menu-button" type="button" aria-label="Open navigation" aria-controls="mobileNavDrawer" aria-expanded="false">
+        <span class="mobile-menu-icon" aria-hidden="true">
+          <span></span>
+          <span></span>
+          <span></span>
+        </span>
+        <span class="mobile-menu-text">Menu</span>
+      </button>
       <div class="brand-lockup">
         <img class="brand-mark" src="/nova.png" alt="Nova AntiCheat logo">
         <div>
@@ -291,6 +299,26 @@
       </section>
     </main>
   </div>
+
+  <div id="mobileNavOverlay" class="mobile-nav-overlay" aria-hidden="true"></div>
+  <aside id="mobileNavDrawer" class="mobile-nav-drawer" aria-hidden="true">
+    <div class="mobile-nav-head">
+      <div>
+        <p class="section-pill">Navigate</p>
+        <h2>Sections</h2>
+      </div>
+      <button id="closeMobileMenuButton" type="button" class="button button-secondary">Close</button>
+    </div>
+    <p class="mobile-nav-copy">Jump straight to the part you want.</p>
+    <nav class="mobile-nav-links" aria-label="Mobile navigation">
+      <a class="mobile-nav-link" href="#checks-card">Checks</a>
+      <a class="mobile-nav-link" href="#versions-card">Versions</a>
+      <a class="mobile-nav-link" href="#pricing-card">Pricing</a>
+      <a class="mobile-nav-link" href="#buy-card">Buy</a>
+      <a class="mobile-nav-link" href="#renew-card">Renew</a>
+      <a class="mobile-nav-link" href="#reset-card">Reset HWID</a>
+    </nav>
+  </aside>
 
   <div id="downloadsModal" class="modal hidden" aria-hidden="true">
     <div class="modal-panel panel downloads-modal-panel">

@@ -17,6 +17,10 @@ const PRICING = {
 };
 
 const elements = {
+  mobileMenuButton: document.getElementById("mobileMenuButton"),
+  closeMobileMenuButton: document.getElementById("closeMobileMenuButton"),
+  mobileNavOverlay: document.getElementById("mobileNavOverlay"),
+  mobileNavDrawer: document.getElementById("mobileNavDrawer"),
   lookupForm: document.getElementById("lookupForm"),
   licenseUserInput: document.getElementById("licenseUserInput"),
   licenseKey: document.getElementById("licenseKey"),
@@ -59,6 +63,35 @@ const elements = {
   downloadAccessKey: document.getElementById("downloadAccessKey"),
   downloadAccessCancel: document.getElementById("downloadAccessCancel")
 };
+
+function setMobileMenuOpen(open) {
+  if (!elements.mobileNavDrawer || !elements.mobileNavOverlay || !elements.mobileMenuButton) {
+    return;
+  }
+
+  elements.mobileNavDrawer.classList.toggle("is-open", open);
+  elements.mobileNavOverlay.classList.toggle("is-open", open);
+  elements.mobileNavDrawer.setAttribute("aria-hidden", String(!open));
+  elements.mobileNavOverlay.setAttribute("aria-hidden", String(!open));
+  elements.mobileMenuButton.setAttribute("aria-expanded", String(open));
+  document.body.classList.toggle("nav-open", open);
+}
+
+function openMobileMenu() {
+  setMobileMenuOpen(true);
+}
+
+function closeMobileMenu() {
+  setMobileMenuOpen(false);
+}
+
+function toggleMobileMenu() {
+  if (!elements.mobileNavDrawer) {
+    return;
+  }
+
+  setMobileMenuOpen(!elements.mobileNavDrawer.classList.contains("is-open"));
+}
 
 function showStatus(message, tone = "info") {
   elements.lookupStatus.textContent = message;
@@ -876,10 +909,14 @@ function initAnchorScroll() {
         block: "start"
       });
       window.history.replaceState(null, "", targetId);
+      closeMobileMenu();
     });
   });
 }
 
+elements.mobileMenuButton?.addEventListener("click", toggleMobileMenu);
+elements.closeMobileMenuButton?.addEventListener("click", closeMobileMenu);
+elements.mobileNavOverlay?.addEventListener("click", closeMobileMenu);
 elements.lookupForm.addEventListener("submit", lookupLicense);
 elements.submitResetButton.addEventListener("click", submitReset);
 elements.clearSelectionButton.addEventListener("click", clearSelection);
@@ -922,6 +959,7 @@ document.addEventListener("keydown", (event) => {
     return;
   }
 
+  closeMobileMenu();
   if (elements.downloadsModal && !elements.downloadsModal.classList.contains("hidden")) {
     closeDownloadsModal();
   }
@@ -930,6 +968,11 @@ document.addEventListener("keydown", (event) => {
   }
   if (elements.versionsModal && !elements.versionsModal.classList.contains("hidden")) {
     closeVersionsModal();
+  }
+});
+window.addEventListener("resize", () => {
+  if (window.innerWidth > 780) {
+    closeMobileMenu();
   }
 });
 if (elements.calcSlots && elements.calcMonths) {
