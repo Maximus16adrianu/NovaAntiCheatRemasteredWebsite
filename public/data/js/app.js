@@ -67,6 +67,8 @@ const elements = {
   securityBlacklistList: document.getElementById("securityBlacklistList"),
   securityDeviceList: document.getElementById("securityDeviceList"),
   securityInstanceList: document.getElementById("securityInstanceList"),
+  securityCandidateDevices: document.getElementById("securityCandidateDevices"),
+  securityCandidateInstances: document.getElementById("securityCandidateInstances"),
   clearSecurityListButton: document.getElementById("clearSecurityListButton"),
   authAttemptCountChip: document.getElementById("authAttemptCountChip"),
   authAttemptsList: document.getElementById("authAttemptsList"),
@@ -418,7 +420,6 @@ function renderDevices(devices) {
   for (const device of state.devices) {
     const card = document.createElement("article");
     card.className = "device-card";
-    card.dataset.cardInfo = "Stored device on this license.";
     card.innerHTML = `
       <label class="device-check">
         <input class="device-selector" type="checkbox" value="${device.id}">
@@ -441,7 +442,6 @@ function renderDevices(devices) {
   }
 
   elements.devicesList.appendChild(fragment);
-  hydrateCardInfoDots(elements.devicesList);
   document.querySelectorAll(".device-selector").forEach((input) => {
     input.addEventListener("change", updateActionState);
   });
@@ -466,7 +466,6 @@ function renderInstances(instances) {
   for (const instance of state.instances) {
     const card = document.createElement("article");
     card.className = "instance-card";
-    card.dataset.cardInfo = "Stored server instance on this license.";
     const status = instance.online ? "Online" : "Offline";
     card.innerHTML = `
       <h5>${escapeHtml(getInstanceCardTitle(instance))}</h5>
@@ -485,7 +484,6 @@ function renderInstances(instances) {
   }
 
   elements.instancesList.appendChild(fragment);
-  hydrateCardInfoDots(elements.instancesList);
 }
 
 function renderWebhookSettings(webhook, definitions) {
@@ -557,14 +555,19 @@ function renderSecurityState(security = {}) {
   if (elements.securityBlacklistList) {
     elements.securityBlacklistList.innerHTML = "";
     if (totalBlocked === 0) {
-      elements.securityBlacklistList.innerHTML = `<div class="download-empty"><strong>No blocked devices or instances.</strong><p>Blacklist entries will appear here after you block a PC or server instance.</p></div>`;
+      elements.securityBlacklistList.innerHTML = `
+        <div class="download-empty security-empty-state">
+          <button id="openBlacklistSectionButton" type="button" class="button button-primary">Open blacklist</button>
+          <strong>No blocked devices or instances.</strong>
+          <p>Blacklist entries will appear here after you block a PC or server instance.</p>
+        </div>
+      `;
     } else {
       const fragment = document.createDocumentFragment();
 
       for (const device of state.blacklistedDevices) {
         const card = document.createElement("article");
         card.className = "security-blacklist-card";
-        card.dataset.cardInfo = "Blocked by the license security list.";
         card.innerHTML = `
           <div class="device-chip-row">
             <span class="device-chip">Device</span>
@@ -582,7 +585,6 @@ function renderSecurityState(security = {}) {
         const serverBadge = getMeaningfulLabel(instance.lastServerName) || "Server unknown";
         const card = document.createElement("article");
         card.className = "security-blacklist-card";
-        card.dataset.cardInfo = "Blocked by the license security list.";
         card.innerHTML = `
           <div class="device-chip-row">
             <span class="device-chip">Instance</span>
@@ -596,7 +598,6 @@ function renderSecurityState(security = {}) {
       }
 
       elements.securityBlacklistList.appendChild(fragment);
-      hydrateCardInfoDots(elements.securityBlacklistList);
     }
   }
 
@@ -610,7 +611,6 @@ function renderSecurityState(security = {}) {
         const blacklisted = isDeviceBlacklisted(device);
         const card = document.createElement("article");
         card.className = "security-entry-card";
-        card.dataset.cardInfo = "Use this to block the device on this license.";
         card.innerHTML = `
           <div class="security-entry-head">
             <div>
@@ -626,7 +626,6 @@ function renderSecurityState(security = {}) {
         fragment.appendChild(card);
       }
       elements.securityDeviceList.appendChild(fragment);
-      hydrateCardInfoDots(elements.securityDeviceList);
     }
   }
 
@@ -640,7 +639,6 @@ function renderSecurityState(security = {}) {
         const blacklisted = isInstanceBlacklisted(instance);
         const card = document.createElement("article");
         card.className = "security-entry-card";
-        card.dataset.cardInfo = "Use this to block the server on this license.";
         card.innerHTML = `
           <div class="security-entry-head">
             <div>
@@ -656,7 +654,6 @@ function renderSecurityState(security = {}) {
         fragment.appendChild(card);
       }
       elements.securityInstanceList.appendChild(fragment);
-      hydrateCardInfoDots(elements.securityInstanceList);
     }
   }
 }
@@ -746,7 +743,6 @@ function renderAuthAttempts(attempts) {
     const details = entry?.details || {};
     const card = document.createElement("article");
     card.className = "auth-attempt-card";
-    card.dataset.cardInfo = "Recent auth result for this license.";
 
     const chips = [];
     const deviceName = cleanLabel(entry.deviceName || details.deviceName, "");
@@ -779,7 +775,6 @@ function renderAuthAttempts(attempts) {
   }
 
   elements.authAttemptsList.appendChild(fragment);
-  hydrateCardInfoDots(elements.authAttemptsList);
 }
 
 function renderLookupResult(payload) {
@@ -1260,6 +1255,23 @@ function openSecurityModal() {
   openModal(elements.securityModal);
 }
 
+function openBlacklistSection() {
+  const target = elements.securityCandidateDevices || elements.securityCandidateInstances;
+  if (!target) {
+    return;
+  }
+
+  target.scrollIntoView({
+    behavior: "smooth",
+    block: "start"
+  });
+
+  target.classList.add("security-card-focus");
+  window.setTimeout(() => {
+    target.classList.remove("security-card-focus");
+  }, 1400);
+}
+
 async function blacklistDevice(deviceId) {
   clearStatus();
   if (!state.licenseKey || !state.licenseUser) {
@@ -1566,13 +1578,11 @@ function renderDownloads(jars) {
   for (const jar of state.downloads) {
     const card = document.createElement("article");
     card.className = "download-card";
-    card.dataset.cardInfo = "Build info and direct download.";
     card.innerHTML = buildDownloadCardHtml(jar, "data-download-jar-id");
     fragment.appendChild(card);
   }
 
   elements.downloadsList.appendChild(fragment);
-  hydrateCardInfoDots(elements.downloadsList);
   updateDownloadCooldownUi();
 }
 
@@ -1997,6 +2007,12 @@ elements.clearSecurityListButton?.addEventListener("click", () => {
   clearSecurityList().catch((error) => {
     showStatus(error.message, "error");
   });
+});
+elements.securityBlacklistList?.addEventListener("click", (event) => {
+  const openButton = event.target.closest("#openBlacklistSectionButton");
+  if (openButton) {
+    openBlacklistSection();
+  }
 });
 elements.securityDeviceList?.addEventListener("click", handleSecurityListClick);
 elements.securityInstanceList?.addEventListener("click", handleSecurityListClick);

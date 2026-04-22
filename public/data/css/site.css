@@ -1313,6 +1313,17 @@ textarea {
   line-height: 1.6;
 }
 
+.security-empty-state {
+  display: grid;
+  justify-items: start;
+  gap: 10px;
+}
+
+.security-card-focus {
+  border-color: rgba(157, 92, 255, 0.58);
+  box-shadow: 0 0 0 3px rgba(157, 92, 255, 0.14);
+}
+
 .download-card-head {
   display: flex;
   align-items: flex-start;
