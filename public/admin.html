@@ -523,6 +523,34 @@
     </div>
   </div>
 
+  <div id="adminActionConfirmModal" class="modal hidden" aria-hidden="true">
+    <div class="modal-panel panel confirm-panel">
+      <div class="section-head">
+        <div>
+          <p id="adminActionConfirmPill" class="section-label">Confirm</p>
+          <h2 id="adminActionConfirmTitle">Confirm action</h2>
+          <p id="adminActionConfirmDescription" class="section-note">Review what this action changes before you continue.</p>
+        </div>
+        <button id="closeAdminActionConfirmButton" type="button" class="button button-secondary">Close</button>
+      </div>
+
+      <div id="adminActionConfirmInfoBox" class="action-info-box info">
+        <strong id="adminActionConfirmInfoTitle">What this does</strong>
+        <p id="adminActionConfirmInfoText">This action updates admin data immediately.</p>
+      </div>
+
+      <div class="confirm-section">
+        <span class="field-label">This will:</span>
+        <ul id="adminActionConfirmEffects" class="action-effects-list"></ul>
+      </div>
+
+      <div class="actions-row">
+        <button id="adminActionConfirmCancelButton" type="button" class="button button-secondary">Cancel</button>
+        <button id="adminActionConfirmSubmitButton" type="button" class="button button-primary">Confirm</button>
+      </div>
+    </div>
+  </div>
+
   <div id="downloadKeyModal" class="modal hidden" aria-hidden="true">
     <div class="modal-panel panel">
       <div class="section-head">

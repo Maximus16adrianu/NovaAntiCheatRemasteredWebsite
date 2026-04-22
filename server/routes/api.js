@@ -5,7 +5,9 @@ const { pluginSecureTransportMiddleware } = require("../secure-transport");
 const { createSignedServerTimePayload } = require("../secure-transport");
 const {
   activateLicense,
+  blacklistLicenseDeviceFromAuthAttemptByKey,
   blacklistLicenseDeviceByKey,
+  blacklistLicenseInstanceFromAuthAttemptByKey,
   blacklistLicenseInstanceByKey,
   clearLicenseSecurityListByKey,
   heartbeatLicenseSession,
@@ -193,6 +195,26 @@ function createApiRouter() {
     try {
       assertPublicAccessAllowed("License management");
       const result = blacklistLicenseInstanceByKey(req.body.licenseKey, req.body.username, req.body.instanceId);
+      res.json(result);
+    } catch (error) {
+      next(error);
+    }
+  });
+
+  router.post("/manage/security/auth-attempt/device-blacklist", publicLimiter, (req, res, next) => {
+    try {
+      assertPublicAccessAllowed("License management");
+      const result = blacklistLicenseDeviceFromAuthAttemptByKey(req.body.licenseKey, req.body.username, req.body.authAttemptId);
+      res.json(result);
+    } catch (error) {
+      next(error);
+    }
+  });
+
+  router.post("/manage/security/auth-attempt/instance-blacklist", publicLimiter, (req, res, next) => {
+    try {
+      assertPublicAccessAllowed("License management");
+      const result = blacklistLicenseInstanceFromAuthAttemptByKey(req.body.licenseKey, req.body.username, req.body.authAttemptId);
       res.json(result);
     } catch (error) {
       next(error);

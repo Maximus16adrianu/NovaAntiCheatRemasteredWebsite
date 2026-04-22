@@ -591,16 +591,25 @@ function listRecentLicenseAuthAttempts(licenseId, limit = 12) {
     Math.min(50, Math.max(5, Number.parseInt(limit, 10) || 12))
   );
 
-  return rows.map((row) => ({
-    id: row.id,
-    licenseId: row.license_id,
-    deviceId: row.device_id,
-    deviceName: row.device_name || "",
-    actor: row.actor,
-    action: row.action,
-    details: safeJsonParse(row.details_json, {}),
-    createdAt: row.created_at
-  }));
+  return rows.map((row) => {
+    const details = safeJsonParse(row.details_json, {});
+    const deviceFingerprint = normalizeText(details.hwidHash);
+    const instanceUuid = normalizeText(details.instanceUuid);
+    const instanceHash = normalizeText(details.instanceHash);
+
+    return {
+      id: row.id,
+      licenseId: row.license_id,
+      deviceId: row.device_id,
+      deviceName: row.device_name || "",
+      actor: row.actor,
+      action: row.action,
+      details,
+      createdAt: row.created_at,
+      canBlockDevice: Boolean(row.device_id || deviceFingerprint),
+      canBlockInstance: Boolean(instanceUuid || instanceHash)
+    };
+  });
 }
 
 function getAuditLogFilterOptions() {

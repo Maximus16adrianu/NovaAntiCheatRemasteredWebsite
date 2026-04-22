@@ -21,6 +21,7 @@ const PRICING = {
   yearly: { label: "Yearly", base: 30, addon: 5 },
   lifetime: { label: "Lifetime", base: 75, addon: 10 }
 };
+const TRUSTED_HTML = Symbol("trustedHtml");
 
 const elements = {
   mobileMenuButton: document.getElementById("mobileMenuButton"),
@@ -64,11 +65,12 @@ const elements = {
   securityModal: document.getElementById("securityModal"),
   closeSecurityModalButton: document.getElementById("closeSecurityModalButton"),
   securityBlockedCount: document.getElementById("securityBlockedCount"),
+  openBlacklistPickerButton: document.getElementById("openBlacklistPickerButton"),
   securityBlacklistList: document.getElementById("securityBlacklistList"),
   securityDeviceList: document.getElementById("securityDeviceList"),
   securityInstanceList: document.getElementById("securityInstanceList"),
-  securityCandidateDevices: document.getElementById("securityCandidateDevices"),
-  securityCandidateInstances: document.getElementById("securityCandidateInstances"),
+  blacklistPickerModal: document.getElementById("blacklistPickerModal"),
+  closeBlacklistPickerButton: document.getElementById("closeBlacklistPickerButton"),
   clearSecurityListButton: document.getElementById("clearSecurityListButton"),
   authAttemptCountChip: document.getElementById("authAttemptCountChip"),
   authAttemptsList: document.getElementById("authAttemptsList"),
@@ -204,9 +206,9 @@ function hydrateCardInfoDots(root = document) {
     const hint = document.createElement("span");
     hint.className = "card-info-hint";
     hint.setAttribute("aria-hidden", "true");
-    hint.innerHTML = `
+    hint.innerHTML = html`
       <span class="card-info-symbol">i</span>
-      <span class="card-info-tooltip">${escapeHtml(tooltipText)}</span>
+      <span class="card-info-tooltip">${tooltipText}</span>
     `;
     card.appendChild(hint);
   });
@@ -358,6 +360,36 @@ function formatDuration(ms) {
   return parts.join(" ");
 }
 
+function maskHwid(value) {
+  const hwid = String(value || "").trim();
+  if (!hwid) {
+    return "-";
+  }
+  if (hwid.length <= 9) {
+    return hwid;
+  }
+  return `${hwid.slice(0, 4)}...${hwid.slice(-5)}`;
+}
+
+function buildCopyableMetaLine(label, fullValue, copyLabel = "Copy full HWID") {
+  const value = String(fullValue || "").trim();
+  if (!value) {
+    return html`${label}: -`;
+  }
+
+  return html`
+    <span class="meta-inline-row">
+      <span>${label}: <span class="mono-wrap">${maskHwid(value)}</span></span>
+      <button
+        class="meta-copy-button"
+        type="button"
+        data-copy-text="${value}"
+        data-copy-label="${copyLabel}"
+      >${copyLabel}</button>
+    </span>
+  `;
+}
+
 function getChannelBadge(jar) {
   if (jar?.releaseChannel === "beta") {
     return '<span class="download-badge beta">Beta</span>';
@@ -370,25 +402,25 @@ function getChannelBadge(jar) {
 
 function buildDownloadCardHtml(jar, buttonAttributeName = "data-download-jar-id") {
   const buttonLabel = jar.requiresBuyerLicense ? "Buyer download" : "Download";
-  return `
+  return html`
     <div class="download-card-head">
       <div>
-        <h4>${escapeHtml(jar.displayName || jar.downloadName || jar.originalName || "Nova jar")}</h4>
+        <h4>${jar.displayName || jar.downloadName || jar.originalName || "Nova jar"}</h4>
         <div class="download-card-meta">
-          ${jar.recommended ? '<span class="download-badge recommended">Recommended</span>' : ""}
-          ${getChannelBadge(jar)}
-          ${getDownloadAccessBadge(jar)}
-          ${jar.supportedVersions ? `<span class="download-badge subtle">${escapeHtml(jar.supportedVersions)}</span>` : ""}
-          ${jar.createdAt ? `<span class="download-badge subtle">Published ${escapeHtml(formatDate(jar.createdAt))}</span>` : ""}
-          <span class="download-badge subtle">${escapeHtml(jar.originalName || jar.downloadName || "jar")}</span>
-          <span class="download-badge subtle">${escapeHtml(formatBytes(jar.fileSize || 0))}</span>
-          <span class="download-badge subtle">Updated ${escapeHtml(formatDate(jar.updatedAt))}</span>
+          ${jar.recommended ? rawHtml('<span class="download-badge recommended">Recommended</span>') : ""}
+          ${rawHtml(getChannelBadge(jar))}
+          ${rawHtml(getDownloadAccessBadge(jar))}
+          ${jar.supportedVersions ? rawHtml(html`<span class="download-badge subtle">${jar.supportedVersions}</span>`) : ""}
+          ${jar.createdAt ? rawHtml(html`<span class="download-badge subtle">Published ${formatDate(jar.createdAt)}</span>`) : ""}
+          <span class="download-badge subtle">${jar.originalName || jar.downloadName || "jar"}</span>
+          <span class="download-badge subtle">${formatBytes(jar.fileSize || 0)}</span>
+          <span class="download-badge subtle">Updated ${formatDate(jar.updatedAt)}</span>
         </div>
       </div>
       <button class="button button-primary" type="button" ${buttonAttributeName}="${jar.id}">${buttonLabel}</button>
     </div>
-    <p>${escapeHtml(jar.notes || "Official Nova jar download.")}</p>
-    ${jar.changelog ? `<p>${escapeHtml(jar.changelog)}</p>` : ""}
+    <p>${jar.notes || "Official Nova jar download."}</p>
+    ${jar.changelog ? rawHtml(html`<p>${jar.changelog}</p>`) : ""}
   `;
 }
 
@@ -411,7 +443,7 @@ function renderDevices(devices) {
   elements.deviceCountChip.textContent = `${state.devices.length} device${state.devices.length === 1 ? "" : "s"}`;
 
   if (state.devices.length === 0) {
-    elements.devicesList.innerHTML = `<div class="empty-devices">No active devices are currently registered for this license.</div>`;
+    elements.devicesList.innerHTML = html`<div class="empty-devices">No active devices are currently registered for this license.</div>`;
     updateActionState();
     return;
   }
@@ -420,23 +452,25 @@ function renderDevices(devices) {
   for (const device of state.devices) {
     const card = document.createElement("article");
     card.className = "device-card";
-    card.innerHTML = `
-      <label class="device-check">
-        <input class="device-selector" type="checkbox" value="${device.id}">
-        <div>
-          <h5>${escapeHtml(cleanLabel(device.deviceName, "Unknown Device"))}</h5>
+    card.innerHTML = html`
+      <div class="device-check">
+        <input id="device-selector-${device.id}" class="device-selector" type="checkbox" value="${device.id}">
+        <div class="device-check-body">
+          <label class="device-check-label" for="device-selector-${device.id}">
+          <h5>${cleanLabel(device.deviceName, "Unknown Device")}</h5>
           <div class="device-chip-row">
             <span class="device-chip">${device.online ? "Online" : "Offline"}</span>
             <span class="device-chip">${device.openSessionCount || 0} open session${device.openSessionCount === 1 ? "" : "s"}</span>
           </div>
+          </label>
           <p class="device-meta">
-            Last username: ${escapeHtml(device.lastUsername || "unknown")}<br>
-            First seen: ${escapeHtml(formatDate(device.firstSeenAt))}<br>
-            Last seen: ${escapeHtml(formatDate(device.lastSeenAt))}<br>
-            HWID: <span class="mono-wrap">${escapeHtml(device.hwidHash)}</span>
+            Last username: ${device.lastUsername || "unknown"}<br>
+            First seen: ${formatDate(device.firstSeenAt)}<br>
+            Last seen: ${formatDate(device.lastSeenAt)}<br>
+            ${rawHtml(buildCopyableMetaLine("HWID", device.hwidHash))}
           </p>
         </div>
-      </label>
+      </div>
     `;
     fragment.appendChild(card);
   }
@@ -458,7 +492,7 @@ function renderInstances(instances) {
   elements.instanceCountChip.textContent = `${state.instances.length} instance${state.instances.length === 1 ? "" : "s"}`;
 
   if (state.instances.length === 0) {
-    elements.instancesList.innerHTML = `<div class="download-empty">No stored instances are registered for this license.</div>`;
+    elements.instancesList.innerHTML = html`<div class="download-empty">No stored instances are registered for this license.</div>`;
     return;
   }
 
@@ -467,17 +501,17 @@ function renderInstances(instances) {
     const card = document.createElement("article");
     card.className = "instance-card";
     const status = instance.online ? "Online" : "Offline";
-    card.innerHTML = `
-      <h5>${escapeHtml(getInstanceCardTitle(instance))}</h5>
+    card.innerHTML = html`
+      <h5>${getInstanceCardTitle(instance)}</h5>
       <div class="device-chip-row">
-        <span class="device-chip">${escapeHtml(status)}</span>
-        <span class="device-chip">${escapeHtml(getInstanceServerBadge(instance))}</span>
+        <span class="device-chip">${status}</span>
+        <span class="device-chip">${getInstanceServerBadge(instance)}</span>
       </div>
       <p class="instance-meta">
-        Device: ${escapeHtml(cleanLabel(instance.deviceName, "Unknown device"))}<br>
-        First seen: ${escapeHtml(formatDate(instance.firstSeenAt))}<br>
-        Last seen: ${escapeHtml(formatDate(instance.lastSeenAt))}<br>
-        Instance: <span class="mono-wrap">${escapeHtml(instance.instanceUuid || instance.instanceHash || "-")}</span>
+        Device: ${cleanLabel(instance.deviceName, "Unknown device")}<br>
+        First seen: ${formatDate(instance.firstSeenAt)}<br>
+        Last seen: ${formatDate(instance.lastSeenAt)}<br>
+        Instance: <span class="mono-wrap">${instance.instanceUuid || instance.instanceHash || "-"}</span>
       </p>
     `;
     fragment.appendChild(card);
@@ -509,11 +543,11 @@ function renderWebhookSettings(webhook, definitions) {
     const checked = webhook?.events?.[definition.id] !== false;
     const label = document.createElement("label");
     label.className = "webhook-event";
-    label.innerHTML = `
-      <input type="checkbox" data-webhook-event-id="${escapeHtml(definition.id)}"${checked ? " checked" : ""}>
+    label.innerHTML = html`
+      <input type="checkbox" data-webhook-event-id="${definition.id}"${checked ? " checked" : ""}>
       <div>
-        <strong>${escapeHtml(definition.label)}</strong>
-        <p>${escapeHtml(definition.description)}</p>
+        <strong>${definition.label}</strong>
+        <p>${definition.description}</p>
       </div>
     `;
     fragment.appendChild(label);
@@ -555,9 +589,8 @@ function renderSecurityState(security = {}) {
   if (elements.securityBlacklistList) {
     elements.securityBlacklistList.innerHTML = "";
     if (totalBlocked === 0) {
-      elements.securityBlacklistList.innerHTML = `
+      elements.securityBlacklistList.innerHTML = html`
         <div class="download-empty security-empty-state">
-          <button id="openBlacklistSectionButton" type="button" class="button button-primary">Open blacklist</button>
           <strong>No blocked devices or instances.</strong>
           <p>Blacklist entries will appear here after you block a PC or server instance.</p>
         </div>
@@ -568,13 +601,13 @@ function renderSecurityState(security = {}) {
       for (const device of state.blacklistedDevices) {
         const card = document.createElement("article");
         card.className = "security-blacklist-card";
-        card.innerHTML = `
+        card.innerHTML = html`
           <div class="device-chip-row">
             <span class="device-chip">Device</span>
-            <span class="device-chip">Blocked ${escapeHtml(formatDate(device.createdAt))}</span>
+            <span class="device-chip">Blocked ${formatDate(device.createdAt)}</span>
           </div>
-          <h5>${escapeHtml(cleanLabel(device.deviceName, "Blocked device"))}</h5>
-          <p class="instance-meta">HWID: <span class="mono-wrap">${escapeHtml(device.hwidHash || "-")}</span></p>
+          <h5>${cleanLabel(device.deviceName, "Blocked device")}</h5>
+          <p class="instance-meta">${rawHtml(buildCopyableMetaLine("HWID", device.hwidHash))}</p>
         `;
         fragment.appendChild(card);
       }
@@ -585,14 +618,14 @@ function renderSecurityState(security = {}) {
         const serverBadge = getMeaningfulLabel(instance.lastServerName) || "Server unknown";
         const card = document.createElement("article");
         card.className = "security-blacklist-card";
-        card.innerHTML = `
+        card.innerHTML = html`
           <div class="device-chip-row">
             <span class="device-chip">Instance</span>
-            <span class="device-chip">${escapeHtml(serverBadge)}</span>
-            <span class="device-chip">Blocked ${escapeHtml(formatDate(instance.createdAt))}</span>
+            <span class="device-chip">${serverBadge}</span>
+            <span class="device-chip">Blocked ${formatDate(instance.createdAt)}</span>
           </div>
-          <h5>${escapeHtml(title)}</h5>
-          <p class="instance-meta">Instance: <span class="mono-wrap">${escapeHtml(instance.instanceUuid || instance.instanceHash || "-")}</span></p>
+          <h5>${title}</h5>
+          <p class="instance-meta">Instance: <span class="mono-wrap">${instance.instanceUuid || instance.instanceHash || "-"}</span></p>
         `;
         fragment.appendChild(card);
       }
@@ -604,24 +637,24 @@ function renderSecurityState(security = {}) {
   if (elements.securityDeviceList) {
     elements.securityDeviceList.innerHTML = "";
     if (state.devices.length === 0) {
-      elements.securityDeviceList.innerHTML = `<div class="download-empty"><strong>No active devices to block.</strong><p>Devices that successfully authenticated on this license will show up here.</p></div>`;
+      elements.securityDeviceList.innerHTML = html`<div class="download-empty"><strong>No active devices to block.</strong><p>Devices that successfully authenticated on this license will show up here.</p></div>`;
     } else {
       const fragment = document.createDocumentFragment();
       for (const device of state.devices) {
         const blacklisted = isDeviceBlacklisted(device);
         const card = document.createElement("article");
         card.className = "security-entry-card";
-        card.innerHTML = `
+        card.innerHTML = html`
           <div class="security-entry-head">
             <div>
-              <h5>${escapeHtml(cleanLabel(device.deviceName, "Unknown Device"))}</h5>
-              <p>${escapeHtml(device.online ? "Currently online" : "Currently offline")}</p>
+              <h5>${cleanLabel(device.deviceName, "Unknown Device")}</h5>
+              <p>${device.online ? "Currently online" : "Currently offline"}</p>
             </div>
             <button class="button ${blacklisted ? "button-secondary" : "button-primary"}" type="button" data-blacklist-device-id="${device.id}"${blacklisted ? " disabled" : ""}>
               ${blacklisted ? "Blocked" : "Blacklist"}
             </button>
           </div>
-          <p class="instance-meta">HWID: <span class="mono-wrap">${escapeHtml(device.hwidHash || "-")}</span></p>
+          <p class="instance-meta">${rawHtml(buildCopyableMetaLine("HWID", device.hwidHash))}</p>
         `;
         fragment.appendChild(card);
       }
@@ -632,24 +665,24 @@ function renderSecurityState(security = {}) {
   if (elements.securityInstanceList) {
     elements.securityInstanceList.innerHTML = "";
     if (state.instances.length === 0) {
-      elements.securityInstanceList.innerHTML = `<div class="download-empty"><strong>No active instances to block.</strong><p>Stored server instances tied to this license will show up here.</p></div>`;
+      elements.securityInstanceList.innerHTML = html`<div class="download-empty"><strong>No active instances to block.</strong><p>Stored server instances tied to this license will show up here.</p></div>`;
     } else {
       const fragment = document.createDocumentFragment();
       for (const instance of state.instances) {
         const blacklisted = isInstanceBlacklisted(instance);
         const card = document.createElement("article");
         card.className = "security-entry-card";
-        card.innerHTML = `
+        card.innerHTML = html`
           <div class="security-entry-head">
             <div>
-              <h5>${escapeHtml(getInstanceCardTitle(instance))}</h5>
-              <p>${escapeHtml(getInstanceServerBadge(instance))}</p>
+              <h5>${getInstanceCardTitle(instance)}</h5>
+              <p>${getInstanceServerBadge(instance)}</p>
             </div>
             <button class="button ${blacklisted ? "button-secondary" : "button-primary"}" type="button" data-blacklist-instance-id="${instance.id}"${blacklisted ? " disabled" : ""}>
               ${blacklisted ? "Blocked" : "Blacklist"}
             </button>
           </div>
-          <p class="instance-meta">Instance: <span class="mono-wrap">${escapeHtml(instance.instanceUuid || instance.instanceHash || "-")}</span></p>
+          <p class="instance-meta">Instance: <span class="mono-wrap">${instance.instanceUuid || instance.instanceHash || "-"}</span></p>
         `;
         fragment.appendChild(card);
       }
@@ -665,27 +698,31 @@ function getAuthAttemptStatus(entry) {
 function getAuthAttemptTitle(entry) {
   switch (entry?.action) {
     case "license_activated":
-      return "Activation allowed";
-    case "auth_denied_license_disabled":
-      return "License disabled";
-    case "auth_denied_license_expired":
-      return "License expired";
-    case "auth_denied_username_mismatch":
-      return "Username mismatch";
-    case "hwid_limit_denied":
-      return "HWID limit denied";
-    case "instance_limit_denied":
-      return "Instance limit denied";
+      return "Allowed";
+    case "auth_denied_unknown_license":
+      return "Denied: invalid key";
     case "auth_denied_device_blacklisted":
-      return "Device blocked";
+      return "Denied: blocked device";
     case "auth_denied_instance_blacklisted":
-      return "Instance blocked";
+      return "Denied: blocked instance";
+    case "instance_limit_denied":
+      return "Denied: instance limit";
+    case "hwid_limit_denied":
+      return "Denied: HWID limit";
+    case "auth_denied_license_disabled":
+      return "Denied: disabled license";
+    case "auth_denied_license_expired":
+      return "Denied: expired license";
+    case "auth_denied_username_mismatch":
+      return "Denied: username mismatch";
+    case "reset_cooldown_denied":
+      return "Denied: cooldown";
     case "heartbeat_denied_license_missing":
-      return "Heartbeat denied";
+      return "Denied: session missing";
     case "heartbeat_denied_license_disabled":
-      return "Heartbeat blocked";
+      return "Denied: disabled license";
     case "heartbeat_denied_license_expired":
-      return "Heartbeat expired";
+      return "Denied: expired license";
     default:
       return "Auth attempt";
   }
@@ -704,6 +741,8 @@ function getAuthAttemptSummary(entry) {
       return details.providedUsername
         ? `A plugin used the wrong username: ${details.providedUsername}.`
         : "A plugin used a username that does not match this license.";
+    case "reset_cooldown_denied":
+      return "A reset action was denied because the cooldown was still active.";
     case "hwid_limit_denied":
       return `${details.activeDeviceCount ?? "?"}/${details.maxHwids ?? "?"} device slots were already in use.`;
     case "instance_limit_denied":
@@ -733,7 +772,7 @@ function renderAuthAttempts(attempts) {
   elements.authAttemptsList.innerHTML = "";
 
   if (state.authAttempts.length === 0) {
-    elements.authAttemptsList.innerHTML = `<div class="download-empty"><strong>No recent auth attempts yet.</strong><p>Recent activations and denied auth events will show up here.</p></div>`;
+    elements.authAttemptsList.innerHTML = html`<div class="download-empty"><strong>No recent auth attempts yet.</strong><p>Recent activations and denied auth events will show up here.</p></div>`;
     return;
   }
 
@@ -743,6 +782,15 @@ function renderAuthAttempts(attempts) {
     const details = entry?.details || {};
     const card = document.createElement("article");
     card.className = "auth-attempt-card";
+    const deviceAlreadyBlocked = details.hwidHash
+      ? isDeviceBlacklisted({ hwidHash: details.hwidHash })
+      : false;
+    const instanceAlreadyBlocked = (details.instanceUuid || details.instanceHash)
+      ? isInstanceBlacklisted({
+        instanceUuid: details.instanceUuid,
+        instanceHash: details.instanceHash
+      })
+      : false;
 
     const chips = [];
     const deviceName = cleanLabel(entry.deviceName || details.deviceName, "");
@@ -757,18 +805,48 @@ function renderAuthAttempts(attempts) {
       chips.push(`<span class="device-chip">User ${escapeHtml(details.providedUsername)}</span>`);
     }
 
-    card.innerHTML = `
+    const actions = [];
+    if (entry.canBlockDevice) {
+      actions.push(html`
+        <button
+          class="button button-secondary"
+          type="button"
+          data-block-auth-device-id="${entry.id}"
+          ${deviceAlreadyBlocked ? "disabled" : ""}
+        >${deviceAlreadyBlocked ? "Device blocked" : "Block device"}</button>
+      `);
+    }
+    if (entry.canBlockInstance) {
+      actions.push(html`
+        <button
+          class="button button-secondary"
+          type="button"
+          data-block-auth-instance-id="${entry.id}"
+          ${instanceAlreadyBlocked ? "disabled" : ""}
+        >${instanceAlreadyBlocked ? "Instance blocked" : "Block instance"}</button>
+      `);
+    }
+
+    const chipsHtml = chips.length
+      ? html`<div class="device-chip-row">${rawHtml(chips.join(""))}</div>`
+      : "";
+    const actionsHtml = actions.length
+      ? html`<div class="auth-attempt-actions">${rawHtml(actions.join(""))}</div>`
+      : "";
+
+    card.innerHTML = html`
       <div class="auth-attempt-head">
         <div>
-          <h5>${escapeHtml(getAuthAttemptTitle(entry))}</h5>
-          <p>${escapeHtml(getAuthAttemptSummary(entry))}</p>
+          <h5>${getAuthAttemptTitle(entry)}</h5>
+          <p>${getAuthAttemptSummary(entry)}</p>
         </div>
         <div class="auth-attempt-meta">
           <span class="auth-attempt-chip ${status === "allowed" ? "success" : "danger"}">${status === "allowed" ? "Allowed" : "Denied"}</span>
-          <span class="device-chip">${escapeHtml(formatDate(entry.createdAt))}</span>
+          <span class="device-chip">${formatDate(entry.createdAt)}</span>
         </div>
       </div>
-      ${chips.length ? `<div class="device-chip-row">${chips.join("")}</div>` : ""}
+      ${rawHtml(chipsHtml)}
+      ${rawHtml(actionsHtml)}
     `;
 
     fragment.appendChild(card);
@@ -1218,6 +1296,7 @@ function openDeviceManagerModal() {
   closeModal(elements.instanceViewerModal);
   closeModal(elements.webhookSettingsModal);
   closeModal(elements.securityModal);
+  closeModal(elements.blacklistPickerModal);
   openModal(elements.deviceManagerModal);
 }
 
@@ -1229,6 +1308,7 @@ function openInstanceViewerModal() {
   closeModal(elements.deviceManagerModal);
   closeModal(elements.webhookSettingsModal);
   closeModal(elements.securityModal);
+  closeModal(elements.blacklistPickerModal);
   openModal(elements.instanceViewerModal);
 }
 
@@ -1240,6 +1320,7 @@ function openWebhookSettingsModal() {
   closeModal(elements.deviceManagerModal);
   closeModal(elements.instanceViewerModal);
   closeModal(elements.securityModal);
+  closeModal(elements.blacklistPickerModal);
   openModal(elements.webhookSettingsModal);
 }
 
@@ -1252,24 +1333,16 @@ function openSecurityModal() {
   closeModal(elements.deviceManagerModal);
   closeModal(elements.instanceViewerModal);
   closeModal(elements.webhookSettingsModal);
+  closeModal(elements.blacklistPickerModal);
   openModal(elements.securityModal);
 }
 
-function openBlacklistSection() {
-  const target = elements.securityCandidateDevices || elements.securityCandidateInstances;
-  if (!target) {
+function openBlacklistPickerModal() {
+  if (!state.licenseKey) {
+    showStatus("Run a license lookup first.", "error");
     return;
   }
-
-  target.scrollIntoView({
-    behavior: "smooth",
-    block: "start"
-  });
-
-  target.classList.add("security-card-focus");
-  window.setTimeout(() => {
-    target.classList.remove("security-card-focus");
-  }, 1400);
+  openModal(elements.blacklistPickerModal);
 }
 
 async function blacklistDevice(deviceId) {
@@ -1368,6 +1441,141 @@ async function blacklistInstance(instanceId) {
   }
 }
 
+function getAuthAttemptById(authAttemptId) {
+  return state.authAttempts.find((entry) => entry.id === authAttemptId) || null;
+}
+
+function getAuthAttemptDeviceName(entry) {
+  const details = entry?.details || {};
+  return cleanLabel(entry?.deviceName || details.deviceName, "this device");
+}
+
+function getAuthAttemptInstanceName(entry) {
+  const details = entry?.details || {};
+  const explicitName = getMeaningfulLabel(details.instanceName);
+  if (explicitName) {
+    return explicitName;
+  }
+
+  const serverName = getMeaningfulLabel(details.serverName || details.lastServerName);
+  if (serverName) {
+    return serverName;
+  }
+
+  const instanceUuid = getMeaningfulLabel(details.instanceUuid);
+  if (instanceUuid) {
+    return `Instance ${instanceUuid.slice(0, 8)}`;
+  }
+
+  return "this server instance";
+}
+
+async function blockDeviceFromAuthAttempt(authAttemptId) {
+  clearStatus();
+  if (!state.licenseKey || !state.licenseUser) {
+    showStatus("Run a license lookup first.", "error");
+    return;
+  }
+
+  const attempt = getAuthAttemptById(authAttemptId);
+  if (!attempt) {
+    showStatus("Auth attempt not found.", "error");
+    return;
+  }
+  if (!attempt.canBlockDevice) {
+    showStatus("This auth attempt does not include a device fingerprint.", "error");
+    return;
+  }
+
+  const deviceName = getAuthAttemptDeviceName(attempt);
+  const confirmed = await requestActionConfirm({
+    pill: "Security",
+    title: "Block device from auth attempt",
+    description: "This adds the device from the selected auth attempt to the license security blacklist.",
+    infoTitle: "Device blacklist",
+    infoText: "The matching HWID is denied on future auth attempts and any current live session on that device is closed.",
+    effects: [
+      `Block ${deviceName} on this license.`,
+      "Close the current live session on that device if one is open.",
+      "Keep the block active until you clear the security list."
+    ],
+    confirmLabel: "Block device",
+    tone: "danger"
+  });
+  if (!confirmed) {
+    return;
+  }
+
+  const button = document.querySelector(`[data-block-auth-device-id="${authAttemptId}"]`);
+  setBusy(button, true, "Blocking...");
+  try {
+    const payload = await postJson("/api/manage/security/auth-attempt/device-blacklist", {
+      licenseKey: state.licenseKey,
+      username: state.licenseUser,
+      authAttemptId
+    });
+    renderLookupResult(payload);
+    showStatus(payload.message || "The device from this auth attempt was blocked.", "success");
+  } catch (error) {
+    showStatus(error.message, "error");
+  } finally {
+    setBusy(button, false, "Blocking...");
+  }
+}
+
+async function blockInstanceFromAuthAttempt(authAttemptId) {
+  clearStatus();
+  if (!state.licenseKey || !state.licenseUser) {
+    showStatus("Run a license lookup first.", "error");
+    return;
+  }
+
+  const attempt = getAuthAttemptById(authAttemptId);
+  if (!attempt) {
+    showStatus("Auth attempt not found.", "error");
+    return;
+  }
+  if (!attempt.canBlockInstance) {
+    showStatus("This auth attempt does not include a stable instance identity yet.", "error");
+    return;
+  }
+
+  const instanceName = getAuthAttemptInstanceName(attempt);
+  const confirmed = await requestActionConfirm({
+    pill: "Security",
+    title: "Block instance from auth attempt",
+    description: "This adds the server instance from the selected auth attempt to the license security blacklist.",
+    infoTitle: "Instance blacklist",
+    infoText: "The matching server identity is denied on future auth attempts and its current live session is closed if it is online.",
+    effects: [
+      `Block ${instanceName} on this license.`,
+      "Close the current live session for that server if one is open.",
+      "Keep the block active until you clear the security list."
+    ],
+    confirmLabel: "Block instance",
+    tone: "danger"
+  });
+  if (!confirmed) {
+    return;
+  }
+
+  const button = document.querySelector(`[data-block-auth-instance-id="${authAttemptId}"]`);
+  setBusy(button, true, "Blocking...");
+  try {
+    const payload = await postJson("/api/manage/security/auth-attempt/instance-blacklist", {
+      licenseKey: state.licenseKey,
+      username: state.licenseUser,
+      authAttemptId
+    });
+    renderLookupResult(payload);
+    showStatus(payload.message || "The instance from this auth attempt was blocked.", "success");
+  } catch (error) {
+    showStatus(error.message, "error");
+  } finally {
+    setBusy(button, false, "Blocking...");
+  }
+}
+
 async function clearSecurityList() {
   clearStatus();
   if (!state.licenseKey || !state.licenseUser) {
@@ -1432,6 +1640,29 @@ function handleSecurityListClick(event) {
   }
 }
 
+function handleAuthAttemptClick(event) {
+  const deviceButton = event.target.closest("[data-block-auth-device-id]");
+  if (deviceButton) {
+    const authAttemptId = Number.parseInt(deviceButton.dataset.blockAuthDeviceId, 10);
+    if (Number.isFinite(authAttemptId)) {
+      blockDeviceFromAuthAttempt(authAttemptId).catch((error) => {
+        showStatus(error.message, "error");
+      });
+    }
+    return;
+  }
+
+  const instanceButton = event.target.closest("[data-block-auth-instance-id]");
+  if (instanceButton) {
+    const authAttemptId = Number.parseInt(instanceButton.dataset.blockAuthInstanceId, 10);
+    if (Number.isFinite(authAttemptId)) {
+      blockInstanceFromAuthAttempt(authAttemptId).catch((error) => {
+        showStatus(error.message, "error");
+      });
+    }
+  }
+}
+
 function openModal(modal) {
   if (!modal) {
     return;
@@ -1448,6 +1679,68 @@ function closeModal(modal) {
 
   modal.classList.add("hidden");
   modal.setAttribute("aria-hidden", "true");
+}
+
+async function copyTextToClipboard(text) {
+  if (navigator.clipboard?.writeText) {
+    await navigator.clipboard.writeText(text);
+    return;
+  }
+
+  const helper = document.createElement("textarea");
+  helper.value = text;
+  helper.setAttribute("readonly", "");
+  helper.style.position = "fixed";
+  helper.style.opacity = "0";
+  document.body.appendChild(helper);
+  helper.focus();
+  helper.select();
+
+  try {
+    const copied = document.execCommand("copy");
+    if (!copied) {
+      throw new Error("Copy failed");
+    }
+  } finally {
+    helper.remove();
+  }
+}
+
+function handleCopyButtonClick(event) {
+  const button = event.target.closest("[data-copy-text]");
+  if (!button) {
+    return;
+  }
+
+  event.preventDefault();
+  event.stopPropagation();
+
+  if (button.disabled) {
+    return;
+  }
+
+  const copyText = String(button.dataset.copyText || "").trim();
+  if (!copyText) {
+    return;
+  }
+
+  const defaultLabel = button.dataset.copyLabel || button.textContent.trim() || "Copy";
+  button.disabled = true;
+
+  copyTextToClipboard(copyText)
+    .then(() => {
+      button.textContent = "Copied";
+    })
+    .catch(() => {
+      button.textContent = "Copy failed";
+      showStatus("Could not copy the full HWID.", "error");
+    })
+    .finally(() => {
+      window.setTimeout(() => {
+        button.textContent = defaultLabel;
+        button.disabled = false;
+      }, 1200);
+    });
 }
 
 function openChecksModal() {
@@ -1569,7 +1862,7 @@ function renderDownloads(jars) {
     const emptyTitle = state.downloadLicenseKey
       ? "No builds are currently published for this license."
       : "No builds are currently published right now.";
-    elements.downloadsList.innerHTML = `<div class="download-empty"><strong>${escapeHtml(emptyTitle)}</strong><p>If you think this is wrong, contact support.</p></div>`;
+    elements.downloadsList.innerHTML = html`<div class="download-empty"><strong>${emptyTitle}</strong><p>If you think this is wrong, contact support.</p></div>`;
     updateDownloadCooldownUi();
     return;
   }
@@ -1771,6 +2064,36 @@ function escapeHtml(value) {
     .replaceAll("'", "&#39;");
 }
 
+function rawHtml(value) {
+  return {
+    [TRUSTED_HTML]: String(value ?? "")
+  };
+}
+
+function normalizeHtmlInterpolation(value) {
+  if (value == null || value === false) {
+    return "";
+  }
+  if (Array.isArray(value)) {
+    return value.map((entry) => normalizeHtmlInterpolation(entry)).join("");
+  }
+  if (typeof value === "object" && value[TRUSTED_HTML] != null) {
+    return value[TRUSTED_HTML];
+  }
+  return escapeHtml(value);
+}
+
+function html(strings, ...values) {
+  let output = "";
+  for (let index = 0; index < strings.length; index += 1) {
+    output += strings[index];
+    if (index < values.length) {
+      output += normalizeHtmlInterpolation(values[index]);
+    }
+  }
+  return output;
+}
+
 function getPlanPrice(planKey, slots) {
   const plan = PRICING[planKey];
   const normalizedSlots = Math.min(100, Math.max(1, Number.parseInt(slots || "1", 10) || 1));
@@ -1903,7 +2226,7 @@ function initCheckItems() {
 
     const panel = document.createElement("div");
     panel.className = "check-detail-panel is-empty";
-    panel.innerHTML = `
+    panel.innerHTML = html`
       <strong class="check-detail-title">Select a check</strong>
       <p class="check-detail-body">Click any check above to see a short explanation.</p>
     `;
@@ -1976,6 +2299,7 @@ elements.mobileMenuButton?.addEventListener("click", toggleMobileMenu);
 elements.closeMobileMenuButton?.addEventListener("click", closeMobileMenu);
 elements.mobileNavOverlay?.addEventListener("click", closeMobileMenu);
 document.addEventListener("click", handleCardInfoHintClick, true);
+document.addEventListener("click", handleCopyButtonClick);
 elements.lookupForm.addEventListener("submit", lookupLicense);
 elements.openDeviceManagerButton?.addEventListener("click", openDeviceManagerModal);
 elements.openInstanceViewerButton?.addEventListener("click", openInstanceViewerModal);
@@ -1985,6 +2309,8 @@ elements.closeDeviceManagerButton?.addEventListener("click", () => closeModal(el
 elements.closeInstanceViewerButton?.addEventListener("click", () => closeModal(elements.instanceViewerModal));
 elements.closeWebhookSettingsButton?.addEventListener("click", () => closeModal(elements.webhookSettingsModal));
 elements.closeSecurityModalButton?.addEventListener("click", () => closeModal(elements.securityModal));
+elements.openBlacklistPickerButton?.addEventListener("click", openBlacklistPickerModal);
+elements.closeBlacklistPickerButton?.addEventListener("click", () => closeModal(elements.blacklistPickerModal));
 elements.closeActionConfirmButton?.addEventListener("click", () => closeActionConfirm(false));
 elements.actionConfirmCancelButton?.addEventListener("click", () => closeActionConfirm(false));
 elements.actionConfirmSubmitButton?.addEventListener("click", () => closeActionConfirm(true));
@@ -2008,12 +2334,7 @@ elements.clearSecurityListButton?.addEventListener("click", () => {
     showStatus(error.message, "error");
   });
 });
-elements.securityBlacklistList?.addEventListener("click", (event) => {
-  const openButton = event.target.closest("#openBlacklistSectionButton");
-  if (openButton) {
-    openBlacklistSection();
-  }
-});
+elements.authAttemptsList?.addEventListener("click", handleAuthAttemptClick);
 elements.securityDeviceList?.addEventListener("click", handleSecurityListClick);
 elements.securityInstanceList?.addEventListener("click", handleSecurityListClick);
 elements.submitResetButton.addEventListener("click", submitReset);
@@ -2057,6 +2378,7 @@ elements.versionsModal?.addEventListener("click", (event) => {
   elements.instanceViewerModal,
   elements.webhookSettingsModal,
   elements.securityModal,
+  elements.blacklistPickerModal,
   elements.actionConfirmModal
 ].forEach((modal) => {
   modal?.addEventListener("click", (event) => {
@@ -2076,27 +2398,48 @@ document.addEventListener("keydown", (event) => {
 
   closeOpenCardHints();
   closeMobileMenu();
-  if (elements.downloadsModal && !elements.downloadsModal.classList.contains("hidden")) {
-    closeDownloadsModal();
-  }
-  if (elements.checksModal && !elements.checksModal.classList.contains("hidden")) {
-    closeChecksModal();
-  }
-  if (elements.versionsModal && !elements.versionsModal.classList.contains("hidden")) {
-    closeVersionsModal();
-  }
-  [
-    elements.deviceManagerModal,
-    elements.instanceViewerModal,
-    elements.webhookSettingsModal,
-    elements.securityModal
-  ].forEach((modal) => {
-    if (modal && !modal.classList.contains("hidden")) {
-      closeModal(modal);
-    }
-  });
   if (elements.actionConfirmModal && !elements.actionConfirmModal.classList.contains("hidden")) {
     closeActionConfirm(false);
+    return;
+  }
+
+  if (elements.blacklistPickerModal && !elements.blacklistPickerModal.classList.contains("hidden")) {
+    closeModal(elements.blacklistPickerModal);
+    return;
+  }
+
+  if (elements.securityModal && !elements.securityModal.classList.contains("hidden")) {
+    closeModal(elements.securityModal);
+    return;
+  }
+
+  if (elements.webhookSettingsModal && !elements.webhookSettingsModal.classList.contains("hidden")) {
+    closeModal(elements.webhookSettingsModal);
+    return;
+  }
+
+  if (elements.instanceViewerModal && !elements.instanceViewerModal.classList.contains("hidden")) {
+    closeModal(elements.instanceViewerModal);
+    return;
+  }
+
+  if (elements.deviceManagerModal && !elements.deviceManagerModal.classList.contains("hidden")) {
+    closeModal(elements.deviceManagerModal);
+    return;
+  }
+
+  if (elements.downloadsModal && !elements.downloadsModal.classList.contains("hidden")) {
+    closeDownloadsModal();
+    return;
+  }
+
+  if (elements.versionsModal && !elements.versionsModal.classList.contains("hidden")) {
+    closeVersionsModal();
+    return;
+  }
+
+  if (elements.checksModal && !elements.checksModal.classList.contains("hidden")) {
+    closeChecksModal();
   }
 });
 window.addEventListener("resize", () => {

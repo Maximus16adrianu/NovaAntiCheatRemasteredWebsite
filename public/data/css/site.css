@@ -1161,6 +1161,46 @@ textarea {
   word-break: break-word;
 }
 
+.meta-inline-row {
+  display: inline-flex;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+
+.meta-copy-button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 28px;
+  padding: 0 10px;
+  border: 1px solid rgba(157, 92, 255, 0.28);
+  border-radius: 999px;
+  background: rgba(157, 92, 255, 0.08);
+  color: #eadcff;
+  cursor: pointer;
+  font: inherit;
+  font-size: 0.78rem;
+  line-height: 1;
+  white-space: nowrap;
+  transition: background 0.16s ease, border-color 0.16s ease, color 0.16s ease, opacity 0.16s ease;
+}
+
+.meta-copy-button:hover,
+.meta-copy-button:focus-visible {
+  border-color: rgba(157, 92, 255, 0.48);
+  background: rgba(157, 92, 255, 0.16);
+}
+
+.meta-copy-button:focus-visible {
+  outline: none;
+}
+
+.meta-copy-button:disabled {
+  opacity: 0.7;
+  cursor: default;
+}
+
 .webhook-event {
   display: flex;
   gap: 12px;
@@ -1195,6 +1235,15 @@ textarea {
   display: flex;
   gap: 12px;
   align-items: flex-start;
+}
+
+.device-check-body {
+  min-width: 0;
+}
+
+.device-check-label {
+  display: block;
+  cursor: pointer;
 }
 
 .device-check input {
@@ -1246,6 +1295,10 @@ textarea {
 }
 
 .security-modal-panel {
+  width: min(100%, 1120px);
+}
+
+.security-blacklist-modal-panel {
   width: min(100%, 1120px);
 }
 
@@ -1317,11 +1370,6 @@ textarea {
   display: grid;
   justify-items: start;
   gap: 10px;
-}
-
-.security-card-focus {
-  border-color: rgba(157, 92, 255, 0.58);
-  box-shadow: 0 0 0 3px rgba(157, 92, 255, 0.14);
 }
 
 .download-card-head {
@@ -1464,6 +1512,13 @@ textarea {
   flex-wrap: wrap;
 }
 
+.security-summary-actions {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+
 .security-blacklist-list,
 .security-entry-list {
   display: grid;
@@ -1565,6 +1620,13 @@ textarea {
   flex-wrap: wrap;
   gap: 8px;
   justify-content: flex-end;
+}
+
+.auth-attempt-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  margin-top: 12px;
 }
 
 .auth-attempt-chip {
@@ -1744,5 +1806,21 @@ textarea {
 
   .manage-summary-grid {
     grid-template-columns: 1fr;
+  }
+
+  .security-summary-actions {
+    width: 100%;
+  }
+
+  .security-summary-actions .button {
+    width: 100%;
+  }
+
+  .auth-attempt-actions {
+    flex-direction: column;
+  }
+
+  .auth-attempt-actions .button {
+    width: 100%;
   }
 }

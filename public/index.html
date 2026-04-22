@@ -420,7 +420,7 @@
         <div>
           <p class="section-pill">Manage License</p>
           <h3>License security</h3>
-          <p class="section-copy">Block specific devices or server instances if the key was shared, leaked or used from the wrong place.</p>
+          <p class="section-copy">Block specific devices or server instances if this license key was shared, leaked, or used from an unknown location.</p>
         </div>
         <button id="closeSecurityModalButton" type="button" class="button button-secondary">Close</button>
       </div>
@@ -429,11 +429,14 @@
         <article class="security-card" data-card-info="Shows everything blocked on this license.">
           <p class="section-pill">Blacklist</p>
           <h4>Blocked on this license</h4>
-          <p class="security-copy">Anything listed here is denied on the next auth attempt until you clear the security list.</p>
+          <p class="security-copy">Blocked devices and instances will be denied on their next authentication attempt until removed from this list.</p>
 
           <div class="security-summary-row">
             <span id="securityBlockedCount" class="small-chip">0 blocked</span>
-            <button id="clearSecurityListButton" type="button" class="button button-secondary">Clear security list</button>
+            <div class="security-summary-actions">
+              <button id="openBlacklistPickerButton" type="button" class="button button-primary">Open blacklist</button>
+              <button id="clearSecurityListButton" type="button" class="button button-secondary">Clear security list</button>
+            </div>
           </div>
 
           <div id="securityBlacklistList" class="security-blacklist-list"></div>
@@ -451,9 +454,22 @@
           <div id="authAttemptsList" class="auth-attempt-list"></div>
         </article>
       </div>
+    </div>
+  </div>
+
+  <div id="blacklistPickerModal" class="modal hidden" aria-hidden="true">
+    <div class="modal-panel panel security-blacklist-modal-panel">
+      <div class="downloads-head">
+        <div>
+          <p class="section-pill">Manage License</p>
+          <h3>Open blacklist</h3>
+          <p class="section-copy">Pick a stored device or server instance you want to block on this license.</p>
+        </div>
+        <button id="closeBlacklistPickerButton" type="button" class="button button-secondary">Close</button>
+      </div>
 
       <div class="security-candidate-grid">
-        <article id="securityCandidateDevices" class="security-card" data-card-info="Pick a stored device to block on this license.">
+        <article class="security-card" data-card-info="Pick a stored device to block on this license.">
           <div class="security-card-head">
             <div>
               <p class="section-pill">Devices</p>
@@ -463,7 +479,7 @@
           <div id="securityDeviceList" class="security-entry-list"></div>
         </article>
 
-        <article id="securityCandidateInstances" class="security-card" data-card-info="Pick a stored server instance to block on this license.">
+        <article class="security-card" data-card-info="Pick a stored server instance to block on this license.">
           <div class="security-card-head">
             <div>
               <p class="section-pill">Instances</p>

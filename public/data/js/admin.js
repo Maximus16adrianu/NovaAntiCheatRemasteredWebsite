@@ -4,6 +4,7 @@ const PRICING = {
   yearly: { label: "Yearly", base: 30, addon: 5 },
   lifetime: { label: "Lifetime", base: 75, addon: 10 }
 };
+const TRUSTED_HTML = Symbol("trustedHtml");
 
 const state = {
   apiKey: localStorage.getItem(ADMIN_KEY_STORAGE) || "",
@@ -24,7 +25,8 @@ const state = {
   selectedInstances: new Set(),
   draggingJarId: null,
   openJarId: null,
-  formLicense: null
+  formLicense: null,
+  adminActionConfirm: null
 };
 
 const elements = {
@@ -121,6 +123,17 @@ const elements = {
   closeSessionsButton: document.getElementById("closeSessionsButton"),
   auditModal: document.getElementById("auditModal"),
   closeAuditButton: document.getElementById("closeAuditButton"),
+  adminActionConfirmModal: document.getElementById("adminActionConfirmModal"),
+  adminActionConfirmPill: document.getElementById("adminActionConfirmPill"),
+  adminActionConfirmTitle: document.getElementById("adminActionConfirmTitle"),
+  adminActionConfirmDescription: document.getElementById("adminActionConfirmDescription"),
+  adminActionConfirmInfoBox: document.getElementById("adminActionConfirmInfoBox"),
+  adminActionConfirmInfoTitle: document.getElementById("adminActionConfirmInfoTitle"),
+  adminActionConfirmInfoText: document.getElementById("adminActionConfirmInfoText"),
+  adminActionConfirmEffects: document.getElementById("adminActionConfirmEffects"),
+  adminActionConfirmCancelButton: document.getElementById("adminActionConfirmCancelButton"),
+  adminActionConfirmSubmitButton: document.getElementById("adminActionConfirmSubmitButton"),
+  closeAdminActionConfirmButton: document.getElementById("closeAdminActionConfirmButton"),
   downloadKeyModal: document.getElementById("downloadKeyModal"),
   downloadKeyForm: document.getElementById("downloadKeyForm"),
   downloadKeyInput: document.getElementById("downloadKeyInput"),
@@ -134,6 +147,36 @@ function esc(value) {
     .replaceAll(">", "&gt;")
     .replaceAll("\"", "&quot;")
     .replaceAll("'", "&#39;");
+}
+
+function rawHtml(value) {
+  return {
+    [TRUSTED_HTML]: String(value ?? "")
+  };
+}
+
+function normalizeHtmlInterpolation(value) {
+  if (value == null || value === false) {
+    return "";
+  }
+  if (Array.isArray(value)) {
+    return value.map((entry) => normalizeHtmlInterpolation(entry)).join("");
+  }
+  if (typeof value === "object" && value[TRUSTED_HTML] != null) {
+    return value[TRUSTED_HTML];
+  }
+  return esc(value);
+}
+
+function html(strings, ...values) {
+  let output = "";
+  for (let index = 0; index < strings.length; index += 1) {
+    output += strings[index];
+    if (index < values.length) {
+      output += normalizeHtmlInterpolation(values[index]);
+    }
+  }
+  return output;
 }
 
 function showStatus(element, message, tone = "info") {
@@ -160,6 +203,73 @@ function closeModal(modal) {
   }
   modal.classList.add("hidden");
   modal.setAttribute("aria-hidden", "true");
+}
+
+function closeAdminActionConfirm(confirmed = false) {
+  if (elements.adminActionConfirmModal) {
+    closeModal(elements.adminActionConfirmModal);
+  }
+
+  if (elements.adminActionConfirmSubmitButton) {
+    elements.adminActionConfirmSubmitButton.className = "button button-primary";
+    elements.adminActionConfirmSubmitButton.textContent = "Confirm";
+    elements.adminActionConfirmSubmitButton.disabled = false;
+  }
+  if (elements.adminActionConfirmInfoBox) {
+    elements.adminActionConfirmInfoBox.className = "action-info-box info";
+  }
+
+  const pending = state.adminActionConfirm;
+  state.adminActionConfirm = null;
+  if (pending?.resolve) {
+    pending.resolve(Boolean(confirmed));
+  }
+}
+
+function requestAdminActionConfirm({
+  pill = "Confirm",
+  title = "Confirm action",
+  description = "Review what this action changes before you continue.",
+  infoTitle = "What this does",
+  infoText = "This action updates admin data immediately.",
+  effects = [],
+  confirmLabel = "Confirm",
+  tone = "info"
+} = {}) {
+  if (!elements.adminActionConfirmModal) {
+    return Promise.resolve(true);
+  }
+
+  if (state.adminActionConfirm?.resolve) {
+    state.adminActionConfirm.resolve(false);
+  }
+
+  elements.adminActionConfirmPill.textContent = pill;
+  elements.adminActionConfirmTitle.textContent = title;
+  elements.adminActionConfirmDescription.textContent = description;
+  elements.adminActionConfirmInfoTitle.textContent = infoTitle;
+  elements.adminActionConfirmInfoText.textContent = infoText;
+  elements.adminActionConfirmInfoBox.className = `action-info-box ${tone}`;
+  elements.adminActionConfirmSubmitButton.textContent = confirmLabel;
+  elements.adminActionConfirmSubmitButton.className = tone === "danger"
+    ? "button button-danger"
+    : "button button-primary";
+
+  const effectList = Array.isArray(effects) ? effects.filter(Boolean) : [];
+  elements.adminActionConfirmEffects.innerHTML = "";
+  for (const effect of effectList) {
+    const item = document.createElement("li");
+    item.textContent = effect;
+    elements.adminActionConfirmEffects.appendChild(item);
+  }
+
+  openModal(elements.adminActionConfirmModal);
+
+  return new Promise((resolve) => {
+    state.adminActionConfirm = {
+      resolve
+    };
+  });
 }
 
 function setButtonBusy(button, busy, busyLabel) {
@@ -279,12 +389,12 @@ function getServerDisplayName(instance) {
 
 function badge(label, tone = "") {
   const className = tone ? `badge ${tone}` : "badge";
-  return `<span class="${className}">${esc(label)}</span>`;
+  return html`<span class="${className}">${label}</span>`;
 }
 
 function jarMetaBadge(label, tone = "") {
   const className = tone ? `jar-meta-badge ${tone}` : "jar-meta-badge";
-  return `<span class="${className}">${esc(label)}</span>`;
+  return html`<span class="${className}">${label}</span>`;
 }
 
 function buildStatusBadge(license) {
@@ -329,6 +439,39 @@ function formatAuditDetails(details) {
     return JSON.stringify(details || {}, null, 2);
   } catch (_error) {
     return "{}";
+  }
+}
+
+function getAuditActionLabel(action) {
+  switch (action) {
+    case "license_activated":
+      return "Allowed";
+    case "auth_denied_unknown_license":
+      return "Denied: invalid key";
+    case "auth_denied_device_blacklisted":
+      return "Denied: blocked device";
+    case "auth_denied_instance_blacklisted":
+      return "Denied: blocked instance";
+    case "instance_limit_denied":
+      return "Denied: instance limit";
+    case "hwid_limit_denied":
+      return "Denied: HWID limit";
+    case "auth_denied_license_disabled":
+      return "Denied: disabled license";
+    case "auth_denied_license_expired":
+      return "Denied: expired license";
+    case "auth_denied_username_mismatch":
+      return "Denied: username mismatch";
+    case "reset_cooldown_denied":
+      return "Denied: cooldown";
+    case "heartbeat_denied_license_missing":
+      return "Denied: session missing";
+    case "heartbeat_denied_license_disabled":
+      return "Denied: disabled license";
+    case "heartbeat_denied_license_expired":
+      return "Denied: expired license";
+    default:
+      return action || "-";
   }
 }
 
@@ -478,7 +621,7 @@ function renderLicenses() {
   elements.licensesTableBody.innerHTML = "";
 
   if (licenses.length === 0) {
-    elements.licensesTableBody.innerHTML = `<tr class="empty-row"><td colspan="7">No licenses found.</td></tr>`;
+    elements.licensesTableBody.innerHTML = html`<tr class="empty-row"><td colspan="7">No licenses found.</td></tr>`;
     return;
   }
 
@@ -487,34 +630,34 @@ function renderLicenses() {
     const row = document.createElement("tr");
     const addTimeActions = license.licenseType === "lifetime"
       ? ""
-      : `
+      : html`
         <button class="mini-button" data-action="add-month" data-license-id="${license.id}">+1 Month</button>
         <button class="mini-button" data-action="add-year" data-license-id="${license.id}">+1 Year</button>
       `;
 
-    row.innerHTML = `
+    row.innerHTML = html`
       <td>
-        <strong>${esc(license.key)}</strong>
-        <small>${esc(license.displayName || "")}</small>
+        <strong>${license.key}</strong>
+        <small>${license.displayName || ""}</small>
       </td>
-      <td>${esc(license.customerUsername || "Unbound")}</td>
+      <td>${license.customerUsername || "Unbound"}</td>
       <td>
-        ${esc(getLicenseTypeText(license))}
-        <small>${esc(license.licenseType === "lifetime" ? "No expiry" : formatExpiryDate(license.expiresAt))}</small>
+        ${getLicenseTypeText(license)}
+        <small>${license.licenseType === "lifetime" ? "No expiry" : formatExpiryDate(license.expiresAt)}</small>
       </td>
       <td>
         HWIDs ${license.activeDeviceCount}/${license.maxSlots}
         <small>Instances ${license.onlineInstanceCount}/${license.maxSlots}</small>
       </td>
       <td>
-        ${buildStatusBadge(license)}
+        ${rawHtml(buildStatusBadge(license))}
         <small>${license.openSessionCount ? `${license.openSessionCount} open session${license.openSessionCount === 1 ? "" : "s"}` : "No open sessions"}</small>
       </td>
-      <td>${esc(formatMoney(license.pricing?.recommendedPriceEur || 0))}</td>
+      <td>${formatMoney(license.pricing?.recommendedPriceEur || 0)}</td>
       <td>
         <div class="inline-actions">
           <button class="mini-button primary" data-action="open" data-license-id="${license.id}">Edit</button>
-          ${addTimeActions}
+          ${rawHtml(addTimeActions)}
           <button class="mini-button danger" data-action="delete" data-license-id="${license.id}">Delete</button>
         </div>
       </td>
@@ -526,11 +669,11 @@ function renderLicenses() {
 }
 
 function setEmptyDeviceRows() {
-  elements.devicesTableBody.innerHTML = `<tr class="empty-row"><td colspan="8">No devices for the selected license.</td></tr>`;
+  elements.devicesTableBody.innerHTML = html`<tr class="empty-row"><td colspan="8">No devices for the selected license.</td></tr>`;
 }
 
 function setEmptyInstanceRows() {
-  elements.instancesTableBody.innerHTML = `<tr class="empty-row"><td colspan="8">No instances for the selected license.</td></tr>`;
+  elements.instancesTableBody.innerHTML = html`<tr class="empty-row"><td colspan="8">No instances for the selected license.</td></tr>`;
 }
 
 function updateResetButtons() {
@@ -551,15 +694,15 @@ function renderDevices(devices) {
   const fragment = document.createDocumentFragment();
   for (const device of devices) {
     const row = document.createElement("tr");
-    row.innerHTML = `
+    row.innerHTML = html`
       <td class="pick-cell"><input class="device-selector" type="checkbox" value="${device.id}"></td>
-      <td><strong>${esc(cleanLabel(device.deviceName, "Unknown device"))}</strong></td>
-      <td>${device.online ? badge("Online", "success") : badge(device.active ? "Active" : "Reset", device.active ? "" : "warning")}</td>
-      <td>${esc(String(device.openSessionCount || 0))}</td>
-      <td>${esc(device.lastUsername || "unknown")}</td>
-      <td>${esc(formatDate(device.firstSeenAt))}</td>
-      <td>${esc(formatDate(device.lastSeenAt))}</td>
-      <td><small>${esc(device.hwidHash)}</small></td>
+      <td><strong>${cleanLabel(device.deviceName, "Unknown device")}</strong></td>
+      <td>${rawHtml(device.online ? badge("Online", "success") : badge(device.active ? "Active" : "Reset", device.active ? "" : "warning"))}</td>
+      <td>${String(device.openSessionCount || 0)}</td>
+      <td>${device.lastUsername || "unknown"}</td>
+      <td>${formatDate(device.firstSeenAt)}</td>
+      <td>${formatDate(device.lastSeenAt)}</td>
+      <td><small>${device.hwidHash}</small></td>
     `;
     fragment.appendChild(row);
   }
@@ -591,18 +734,18 @@ function renderInstances(instances) {
   const fragment = document.createDocumentFragment();
   for (const instance of instances) {
     const row = document.createElement("tr");
-    row.innerHTML = `
+    row.innerHTML = html`
       <td class="pick-cell"><input class="instance-selector" type="checkbox" value="${instance.id}"></td>
       <td>
-        <strong>${esc(getInstanceDisplayName(instance))}</strong>
-        <small>${esc(instance.instanceUuid || instance.instanceHash || "")}</small>
+        <strong>${getInstanceDisplayName(instance)}</strong>
+        <small>${instance.instanceUuid || instance.instanceHash || ""}</small>
       </td>
-      <td>${buildInstanceStateBadge(instance)}</td>
-      <td>${esc(String(instance.openSessionCount || 0))}</td>
-      <td>${esc(cleanLabel(instance.deviceName, "Unknown device"))}</td>
-      <td>${esc(getServerDisplayName(instance))}</td>
-      <td>${esc(formatDate(instance.firstSeenAt))}</td>
-      <td>${esc(formatDate(instance.lastSeenAt))}</td>
+      <td>${rawHtml(buildInstanceStateBadge(instance))}</td>
+      <td>${String(instance.openSessionCount || 0)}</td>
+      <td>${cleanLabel(instance.deviceName, "Unknown device")}</td>
+      <td>${getServerDisplayName(instance)}</td>
+      <td>${formatDate(instance.firstSeenAt)}</td>
+      <td>${formatDate(instance.lastSeenAt)}</td>
     `;
     fragment.appendChild(row);
   }
@@ -625,30 +768,30 @@ function renderSessions(sessions) {
   elements.sessionsTableBody.innerHTML = "";
 
   if (!Array.isArray(sessions) || sessions.length === 0) {
-    elements.sessionsTableBody.innerHTML = `<tr class="empty-row"><td colspan="7">No sessions recorded yet.</td></tr>`;
+    elements.sessionsTableBody.innerHTML = html`<tr class="empty-row"><td colspan="7">No sessions recorded yet.</td></tr>`;
     return;
   }
 
   const fragment = document.createDocumentFragment();
   for (const session of sessions) {
     const row = document.createElement("tr");
-    row.innerHTML = `
+    row.innerHTML = html`
       <td>
-        <strong>${esc(session.licenseKey)}</strong>
-        <small>${esc(session.customerUsername || "")}</small>
+        <strong>${session.licenseKey}</strong>
+        <small>${session.customerUsername || ""}</small>
       </td>
       <td>
-        ${esc(cleanLabel(session.instanceName, "Unknown instance"))}
-        <small>${esc(session.instanceHash || "")}</small>
+        ${cleanLabel(session.instanceName, "Unknown instance")}
+        <small>${session.instanceHash || ""}</small>
       </td>
-      <td>${esc(cleanLabel(session.deviceName, "Unknown device"))}</td>
+      <td>${cleanLabel(session.deviceName, "Unknown device")}</td>
       <td>
-        ${esc(cleanLabel(session.serverName, "Unknown server"))}
-        <small>${esc(session.pluginVersion || "unknown")}</small>
+        ${cleanLabel(session.serverName, "Unknown server")}
+        <small>${session.pluginVersion || "unknown"}</small>
       </td>
-      <td>${session.online ? badge("Online", "success") : badge(session.staleClosed ? "Timed out" : "Closed", session.staleClosed ? "warning" : "")}</td>
-      <td>${esc(formatDate(session.lastHeartbeatAt))}</td>
-      <td>${esc(session.closeReason || "-")}</td>
+      <td>${rawHtml(session.online ? badge("Online", "success") : badge(session.staleClosed ? "Timed out" : "Closed", session.staleClosed ? "warning" : ""))}</td>
+      <td>${formatDate(session.lastHeartbeatAt)}</td>
+      <td>${session.closeReason || "-"}</td>
     `;
     fragment.appendChild(row);
   }
@@ -678,7 +821,7 @@ function renderJars() {
   elements.jarList.innerHTML = "";
 
   if (jars.length === 0) {
-    elements.jarList.innerHTML = `<div class="empty-jar-list">No jars uploaded yet.</div>`;
+    elements.jarList.innerHTML = html`<div class="empty-jar-list">No jars uploaded yet.</div>`;
     return;
   }
 
@@ -686,10 +829,16 @@ function renderJars() {
   jars.forEach((jar, index) => {
     const displayLabel = jar.displayName || jar.downloadName || jar.originalName || "Jar";
     const isOpen = state.openJarId === jar.id;
+    const metaBadges = [
+      jar.recommended ? jarMetaBadge("Recommended", "recommended") : "",
+      jarMetaBadge(jar.releaseChannelLabel || "Stable"),
+      jar.supportedVersions ? jarMetaBadge(jar.supportedVersions) : "",
+      jarMetaBadge(jar.accessLabel || "Buyers only")
+    ].filter(Boolean).join("");
     const item = document.createElement("article");
     item.className = `jar-item${isOpen ? " is-open" : ""}`;
     item.dataset.jarId = String(jar.id);
-    item.innerHTML = `
+    item.innerHTML = html`
       <div class="jar-item-shell" draggable="true" data-jar-id="${jar.id}">
         <div class="jar-drag-handle" aria-hidden="true">
           <span></span>
@@ -697,12 +846,9 @@ function renderJars() {
           <span></span>
         </div>
         <div class="jar-item-main">
-          <strong class="jar-item-title">${esc(displayLabel)}</strong>
+          <strong class="jar-item-title">${displayLabel}</strong>
           <div class="jar-meta-row">
-            ${jar.recommended ? jarMetaBadge("Recommended", "recommended") : ""}
-            ${jarMetaBadge(jar.releaseChannelLabel || "Stable")}
-            ${jar.supportedVersions ? jarMetaBadge(jar.supportedVersions) : ""}
-            ${jarMetaBadge(jar.accessLabel || "Buyers only")}
+            ${rawHtml(metaBadges)}
           </div>
         </div>
         <div class="jar-item-tools">
@@ -710,38 +856,38 @@ function renderJars() {
           <button class="mini-button primary" type="button" data-action="toggle-jar" data-jar-id="${jar.id}">${isOpen ? "Close" : "Open"}</button>
         </div>
       </div>
-      ${isOpen ? `
+      ${isOpen ? rawHtml(html`
         <div class="jar-item-editor">
           <div class="jar-item-summary">
             <div class="jar-summary-card">
               <span>Stored file</span>
-              <strong>${esc(jar.originalName || "Unknown jar")}</strong>
+              <strong>${jar.originalName || "Unknown jar"}</strong>
             </div>
             <div class="jar-summary-card">
               <span>File size</span>
-              <strong>${esc(formatBytes(jar.fileSize || 0))}</strong>
+              <strong>${formatBytes(jar.fileSize || 0)}</strong>
             </div>
             <div class="jar-summary-card">
               <span>Updated</span>
-              <strong>${esc(formatDate(jar.updatedAt))}</strong>
+              <strong>${formatDate(jar.updatedAt)}</strong>
             </div>
             <div class="jar-summary-card">
               <span>Access</span>
-              <strong>${esc(jar.accessLabel || "Buyers only")}</strong>
+              <strong>${jar.accessLabel || "Buyers only"}</strong>
             </div>
           </div>
           <div class="jar-item-fields">
             <label>
               <span>Public name</span>
-              <input class="jar-name-input" type="text" value="${esc(jar.displayName || "")}" autocomplete="off" spellcheck="false">
+              <input class="jar-name-input" type="text" value="${jar.displayName || ""}" autocomplete="off" spellcheck="false">
             </label>
             <label>
               <span>Public note</span>
-              <textarea class="jar-note-input" rows="3" spellcheck="false">${esc(jar.notes || "")}</textarea>
+              <textarea class="jar-note-input" rows="3" spellcheck="false">${jar.notes || ""}</textarea>
             </label>
             <label>
               <span>Supported versions</span>
-              <input class="jar-versions-input" type="text" value="${esc(jar.supportedVersions || "")}" autocomplete="off" spellcheck="false">
+              <input class="jar-versions-input" type="text" value="${jar.supportedVersions || ""}" autocomplete="off" spellcheck="false">
             </label>
             <label>
               <span>Release channel</span>
@@ -753,7 +899,7 @@ function renderJars() {
             </label>
             <label>
               <span>Changelog</span>
-              <textarea class="jar-changelog-input" rows="5" spellcheck="false">${esc(jar.changelog || "")}</textarea>
+              <textarea class="jar-changelog-input" rows="5" spellcheck="false">${jar.changelog || ""}</textarea>
             </label>
             <label>
               <span>Download access</span>
@@ -772,7 +918,7 @@ function renderJars() {
             <button class="mini-button danger" type="button" data-action="delete-jar" data-jar-id="${jar.id}">Delete jar</button>
           </div>
         </div>
-      ` : ""}
+      `) : ""}
     `;
     fragment.appendChild(item);
   });
@@ -807,6 +953,27 @@ async function uploadJarFromForm(event) {
   const changelog = elements.jarChangelogField.value.trim();
   const recommended = elements.jarRecommendedField.checked ? "true" : "false";
   const accessScope = elements.jarAccessField.value || "buyers";
+
+  const confirmed = await requestAdminActionConfirm({
+    pill: "Downloads",
+    title: "Upload jar",
+    description: "This uploads the selected jar and adds it to the jar manager immediately.",
+    infoTitle: "Jar upload",
+    infoText: "The file is stored on the server and the release settings below become the starting config for this build.",
+    effects: [
+      `Upload ${file.name} to private jar storage.`,
+      `Publish it as ${displayName}.`,
+      `Set the release channel to ${releaseChannel}.`,
+      accessScope === "public" ? "Allow public downloads without a license." : "Keep this build buyer-only.",
+      recommended === "true" ? "Mark this build as the recommended download." : ""
+    ],
+    confirmLabel: "Upload jar",
+    tone: "info"
+  });
+  if (!confirmed) {
+    return;
+  }
+
   const query = new URLSearchParams({
     displayName,
     notes,
@@ -864,6 +1031,27 @@ async function saveJar(jarId, sourceButton) {
   const changelog = item.querySelector(".jar-changelog-input")?.value.trim() || "";
   const accessScope = item.querySelector(".jar-access-input")?.value || "buyers";
   const recommended = Boolean(item.querySelector(".jar-recommended-input")?.checked);
+  const jar = state.jars.find((entry) => entry.id === jarId);
+  const jarLabel = displayName || jar?.displayName || jar?.originalName || "this jar";
+
+  const confirmed = await requestAdminActionConfirm({
+    pill: "Downloads",
+    title: "Save jar changes",
+    description: "This updates the selected build in the jar manager.",
+    infoTitle: "Jar update",
+    infoText: "The saved values are used right away in the admin panel and public download list.",
+    effects: [
+      `Save the current settings for ${jarLabel}.`,
+      `Set the release channel to ${releaseChannel}.`,
+      accessScope === "public" ? "Allow public downloads without a license." : "Keep this build buyer-only.",
+      recommended ? "Mark this build as the recommended download." : "Keep the recommended build setting unchanged unless another jar is marked."
+    ],
+    confirmLabel: "Save jar",
+    tone: "info"
+  });
+  if (!confirmed) {
+    return;
+  }
 
   setButtonBusy(sourceButton, true, "Saving...");
   try {
@@ -884,7 +1072,22 @@ async function saveJar(jarId, sourceButton) {
 async function deleteJarById(jarId, sourceButton) {
   const jar = state.jars.find((entry) => entry.id === jarId);
   const label = jar?.displayName || jar?.originalName || "this jar";
-  if (!window.confirm(`Delete ${label}? This removes the stored jar file from the server.`)) {
+
+  const confirmed = await requestAdminActionConfirm({
+    pill: "Downloads",
+    title: "Delete jar",
+    description: "This removes the selected build from the jar manager.",
+    infoTitle: "Jar deletion",
+    infoText: "The stored jar file is deleted from the server and the build disappears from the download list.",
+    effects: [
+      `Delete ${label}.`,
+      "Remove the stored jar file from private server storage.",
+      "Remove this build from public and buyer download listings."
+    ],
+    confirmLabel: "Delete jar",
+    tone: "danger"
+  });
+  if (!confirmed) {
     return;
   }
 
@@ -1135,7 +1338,7 @@ function renderAuditFilters() {
   for (const action of state.auditFilters.actions || []) {
     const option = document.createElement("option");
     option.value = action;
-    option.textContent = action;
+    option.textContent = getAuditActionLabel(action);
     elements.auditActionField.appendChild(option);
   }
 
@@ -1150,22 +1353,22 @@ function renderAuditLogs() {
 
   elements.auditLogsTableBody.innerHTML = "";
   if (!Array.isArray(state.auditLogs) || state.auditLogs.length === 0) {
-    elements.auditLogsTableBody.innerHTML = `<tr class="empty-row"><td colspan="5">No audit logs matched the current filters.</td></tr>`;
+    elements.auditLogsTableBody.innerHTML = html`<tr class="empty-row"><td colspan="5">No audit logs matched the current filters.</td></tr>`;
     return;
   }
 
   const fragment = document.createDocumentFragment();
   for (const entry of state.auditLogs) {
     const row = document.createElement("tr");
-    row.innerHTML = `
-      <td>${esc(formatDate(entry.createdAt))}</td>
-      <td>${esc(entry.actor || "-")}</td>
-      <td>${esc(entry.action || "-")}</td>
+    row.innerHTML = html`
+      <td>${formatDate(entry.createdAt)}</td>
+      <td>${entry.actor || "-"}</td>
+      <td><span title="${entry.action || "-"}">${getAuditActionLabel(entry.action)}</span></td>
       <td>
-        <strong>${esc(entry.licenseKey || "System")}</strong>
-        <small>${esc(entry.customerUsername || entry.displayName || "")}</small>
+        <strong>${entry.licenseKey || "System"}</strong>
+        <small>${entry.customerUsername || entry.displayName || ""}</small>
       </td>
-      <td><pre class="detail-code">${esc(formatAuditDetails(entry.details))}</pre></td>
+      <td><pre class="detail-code">${formatAuditDetails(entry.details)}</pre></td>
     `;
     fragment.appendChild(row);
   }
@@ -1349,6 +1552,7 @@ function logout() {
   state.openJarId = null;
   localStorage.removeItem(ADMIN_KEY_STORAGE);
   elements.apiKey.value = "";
+  closeAdminActionConfirm(false);
   closeDownloadKeyModal();
   closeModal(elements.inspectorModal);
   closeModal(elements.jarManagerModal);
@@ -1363,7 +1567,7 @@ function logout() {
     elements.auditLogsTableBody.innerHTML = "";
   }
   if (elements.jarList) {
-    elements.jarList.innerHTML = `<div class="empty-jar-list">No jars uploaded yet.</div>`;
+    elements.jarList.innerHTML = html`<div class="empty-jar-list">No jars uploaded yet.</div>`;
   }
   if (elements.jarCountChip) {
     elements.jarCountChip.textContent = "0 jars";
@@ -1444,9 +1648,9 @@ async function submitBackupDownload(event) {
 async function submitLicenseForm(event) {
   event.preventDefault();
   clearStatus(elements.adminStatus);
-  setButtonBusy(elements.saveLicenseButton, true, "Saving...");
 
   const licenseId = elements.licenseId.value.trim();
+  const isEditing = Boolean(licenseId);
   const body = {
     key: elements.licenseKeyField.value.trim() || undefined,
     customerUsername: elements.customerUsernameField.value.trim(),
@@ -1457,6 +1661,33 @@ async function submitLicenseForm(event) {
     notes: elements.notesField.value.trim(),
     active: elements.activeField.checked
   };
+
+  const confirmed = await requestAdminActionConfirm({
+    pill: "Licenses",
+    title: isEditing ? "Update license" : "Create license",
+    description: isEditing
+      ? "This saves the current license settings and applies them immediately."
+      : "This creates a new license from the current editor values.",
+    infoTitle: isEditing ? "License update" : "License creation",
+    infoText: isEditing
+      ? "Slot limits, status, cooldown days, and notes are updated right away."
+      : "A new license key is created now unless you entered one manually.",
+    effects: [
+      `${isEditing ? "Save changes for" : "Create"} ${body.displayName || body.customerUsername || "this license"}.`,
+      `Set the term to ${body.licenseType}.`,
+      `Set the package size to ${body.maxSlots} slot${body.maxSlots === 1 ? "" : "s"}.`,
+      `Set the reset cooldown to ${body.resetIntervalDays} day${body.resetIntervalDays === 1 ? "" : "s"}.`,
+      body.active ? "Leave the license active." : "Mark the license as disabled.",
+      !isEditing ? (body.key ? `Use the manual key ${body.key}.` : "Generate the license key automatically.") : ""
+    ],
+    confirmLabel: isEditing ? "Save license" : "Create license",
+    tone: "info"
+  });
+  if (!confirmed) {
+    return;
+  }
+
+  setButtonBusy(elements.saveLicenseButton, true, "Saving...");
 
   try {
     if (licenseId) {
@@ -1486,7 +1717,21 @@ async function deleteLicenseById(licenseId, sourceButton = null) {
   const license = state.licenses.find((entry) => entry.id === licenseId);
   const label = getLicenseLabel(license);
 
-  if (!window.confirm(`Delete ${label}? This removes the license, devices, instances and sessions.`)) {
+  const confirmed = await requestAdminActionConfirm({
+    pill: "Licenses",
+    title: "Delete license",
+    description: "This permanently removes the selected license.",
+    infoTitle: "License deletion",
+    infoText: "The license, its stored devices, stored instances, and related sessions are deleted together.",
+    effects: [
+      `Delete ${label}.`,
+      "Remove stored devices and stored instances for this license.",
+      "Close and remove related session records."
+    ],
+    confirmLabel: "Delete license",
+    tone: "danger"
+  });
+  if (!confirmed) {
     return;
   }
 
@@ -1567,6 +1812,25 @@ async function handleLicenseTableClick(event) {
   }
 
   if (action === "extend" || action === "add-month" || action === "add-year") {
+    const amountLabel = action === "add-year" ? "1 year" : "1 month";
+    const confirmed = await requestAdminActionConfirm({
+      pill: "Licenses",
+      title: action === "add-year" ? "Add 1 year" : "Add 1 month",
+      description: "This extends the selected license from its current end date.",
+      infoTitle: "Add time",
+      infoText: "Time is added onto the current expiry date instead of restarting the term from today.",
+      effects: [
+        `Extend ${license.key} by ${amountLabel}.`,
+        license.expiresAt ? `Current expiry: ${formatExpiryDate(license.expiresAt)}.` : "Current expiry: no expiry set.",
+        "Save the new expiry immediately."
+      ],
+      confirmLabel: action === "add-year" ? "Add 1 year" : "Add 1 month",
+      tone: "info"
+    });
+    if (!confirmed) {
+      return;
+    }
+
     const body = action === "add-year" ? { years: 1 } : { months: 1 };
     setButtonBusy(button, true, "Adding...");
     try {
@@ -1604,6 +1868,24 @@ async function resetSelectedDevices() {
     return;
   }
 
+  const confirmed = await requestAdminActionConfirm({
+    pill: "Inspector",
+    title: "Reset selected devices",
+    description: "This clears the selected HWIDs from the license immediately.",
+    infoTitle: "Device reset",
+    infoText: "Any open sessions on those devices are closed right away and the devices must authenticate again later.",
+    effects: [
+      `Reset ${state.selectedDevices.size} selected device${state.selectedDevices.size === 1 ? "" : "s"}.`,
+      "Close current sessions on those devices.",
+      "Remove the matching device records until they authenticate again."
+    ],
+    confirmLabel: "Reset devices",
+    tone: "danger"
+  });
+  if (!confirmed) {
+    return;
+  }
+
   setButtonBusy(elements.resetDevicesButton, true, "Resetting...");
   try {
     await adminRequest(`/api/admin/licenses/${state.selectedLicenseId}/reset`, {
@@ -1625,6 +1907,24 @@ async function resetSelectedInstances() {
     return;
   }
 
+  const confirmed = await requestAdminActionConfirm({
+    pill: "Inspector",
+    title: "Reset selected instances",
+    description: "This clears the selected stored server instances from the license immediately.",
+    infoTitle: "Instance reset",
+    infoText: "Any open sessions on those servers are closed right away and the instances must authenticate again later.",
+    effects: [
+      `Reset ${state.selectedInstances.size} selected instance${state.selectedInstances.size === 1 ? "" : "s"}.`,
+      "Close current sessions for those servers.",
+      "Free the matching instance slots until the servers authenticate again."
+    ],
+    confirmLabel: "Reset instances",
+    tone: "danger"
+  });
+  if (!confirmed) {
+    return;
+  }
+
   setButtonBusy(elements.resetInstancesButton, true, "Resetting...");
   try {
     await adminRequest(`/api/admin/licenses/${state.selectedLicenseId}/reset-instances`, {
@@ -1642,6 +1942,25 @@ async function resetSelectedInstances() {
 
 async function reconcileSessions() {
   clearStatus(elements.adminStatus);
+
+  const confirmed = await requestAdminActionConfirm({
+    pill: "Maintenance",
+    title: "Reconcile sessions",
+    description: "This forces an immediate cleanup pass over live session state.",
+    infoTitle: "Session reconciliation",
+    infoText: "Use this when you want the backend to close stale sessions now instead of waiting for the background cleanup cycle.",
+    effects: [
+      "Re-check every open session against the timeout rules.",
+      "Close sessions that are already stale.",
+      "Refresh device, instance, and session counts after cleanup."
+    ],
+    confirmLabel: "Reconcile sessions",
+    tone: "warning"
+  });
+  if (!confirmed) {
+    return;
+  }
+
   setButtonBusy(elements.reconcileSessionsButton, true, "Reconciling...");
   try {
     await adminRequest("/api/admin/maintenance/reconcile", { method: "POST" });
@@ -1659,10 +1978,31 @@ async function toggleLockdown() {
   const enabled = !state.lockdown?.enabled;
   const reason = elements.lockdownReasonField?.value.trim() || "";
 
-  if (enabled && !window.confirm("Enable global lockdown? This closes active plugin sessions and blocks auth, downloads and admin data changes.")) {
-    return;
-  }
-  if (!enabled && !window.confirm("Disable global lockdown?")) {
+  const confirmed = await requestAdminActionConfirm({
+    pill: "Lockdown",
+    title: enabled ? "Enable global lockdown" : "Disable global lockdown",
+    description: enabled
+      ? "This puts the whole licensing system into emergency cutoff mode."
+      : "This reopens normal plugin and buyer access.",
+    infoTitle: enabled ? "Lockdown behavior" : "Lockdown release",
+    infoText: enabled
+      ? "Plugin auth, downloads, self-service actions, and admin data changes are blocked while lockdown is enabled."
+      : "Closed sessions stay closed, but new plugin auth, downloads, and normal admin changes are allowed again.",
+    effects: enabled
+      ? [
+          "Close current active plugin sessions.",
+          "Block new plugin auth, jar downloads, and self-service actions.",
+          reason ? `Show this reason in errors and the admin panel: ${reason}` : "Leave the lockdown reason empty."
+        ]
+      : [
+          "Allow plugin auth and jar downloads again.",
+          "Reopen buyer self-service and normal admin data changes.",
+          "Keep existing closed sessions closed."
+        ],
+    confirmLabel: enabled ? "Enable lockdown" : "Disable lockdown",
+    tone: enabled ? "danger" : "warning"
+  });
+  if (!confirmed) {
     return;
   }
 
@@ -1756,6 +2096,9 @@ elements.closeInspectorButton?.addEventListener("click", () => closeModal(elemen
 elements.closeJarManagerButton?.addEventListener("click", () => closeModal(elements.jarManagerModal));
 elements.closeSessionsButton?.addEventListener("click", () => closeModal(elements.sessionsModal));
 elements.closeAuditButton?.addEventListener("click", () => closeModal(elements.auditModal));
+elements.closeAdminActionConfirmButton?.addEventListener("click", () => closeAdminActionConfirm(false));
+elements.adminActionConfirmCancelButton?.addEventListener("click", () => closeAdminActionConfirm(false));
+elements.adminActionConfirmSubmitButton?.addEventListener("click", () => closeAdminActionConfirm(true));
 elements.toggleLockdownButton?.addEventListener("click", () => {
   toggleLockdown().catch((error) => {
     showStatus(elements.adminStatus, error.message, "error");
@@ -1837,10 +2180,15 @@ elements.downloadKeyModal.addEventListener("click", (event) => {
   elements.inspectorModal,
   elements.jarManagerModal,
   elements.sessionsModal,
-  elements.auditModal
+  elements.auditModal,
+  elements.adminActionConfirmModal
 ].forEach((modal) => {
   modal?.addEventListener("click", (event) => {
     if (event.target === modal) {
+      if (modal === elements.adminActionConfirmModal) {
+        closeAdminActionConfirm(false);
+        return;
+      }
       closeModal(modal);
     }
   });
@@ -1849,8 +2197,13 @@ document.addEventListener("keydown", (event) => {
   if (event.key !== "Escape") {
     return;
   }
+  if (!elements.adminActionConfirmModal.classList.contains("hidden")) {
+    closeAdminActionConfirm(false);
+    return;
+  }
   if (!elements.downloadKeyModal.classList.contains("hidden")) {
     closeDownloadKeyModal();
+    return;
   }
   [
     elements.inspectorModal,

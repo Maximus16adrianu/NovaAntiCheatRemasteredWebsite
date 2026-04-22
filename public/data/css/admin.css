@@ -814,6 +814,58 @@ textarea:focus {
   overflow-x: hidden;
 }
 
+.confirm-panel {
+  width: min(100%, 760px);
+}
+
+.confirm-section {
+  margin-top: 18px;
+}
+
+.action-effects-list {
+  margin: 10px 0 0;
+  padding-left: 20px;
+  color: var(--muted);
+  line-height: 1.65;
+}
+
+.action-effects-list li + li {
+  margin-top: 6px;
+}
+
+.action-info-box {
+  margin-top: 18px;
+  padding: 14px 16px;
+  border: 1px solid var(--border-soft);
+  border-left: 3px solid rgba(157, 92, 255, 0.8);
+  border-radius: 14px;
+  background: rgba(255, 255, 255, 0.03);
+}
+
+.action-info-box strong {
+  display: block;
+  margin-bottom: 6px;
+  color: #eadcff;
+}
+
+.action-info-box p {
+  margin: 0;
+  color: var(--muted);
+  line-height: 1.6;
+}
+
+.action-info-box.info {
+  border-left-color: rgba(157, 92, 255, 0.85);
+}
+
+.action-info-box.warning {
+  border-left-color: rgba(255, 211, 122, 0.85);
+}
+
+.action-info-box.danger {
+  border-left-color: rgba(255, 159, 198, 0.85);
+}
+
 .hidden {
   display: none !important;
 }
