@@ -92,7 +92,9 @@ a {
 }
 
 button,
-input {
+input,
+textarea,
+select {
   font: inherit;
 }
 
@@ -279,6 +281,7 @@ input[type="number"] {
 .edition-grid,
 .pricing-grid,
 .devices-grid,
+.manage-grid,
 .license-meta,
 .extras-grid,
 .calculator-grid,
@@ -296,6 +299,7 @@ input[type="number"] {
 .pricing-card,
 .extra-card,
 .device-card,
+.manage-card,
 .license-meta > div,
 .small-chip,
 .status-banner,
@@ -309,6 +313,7 @@ input[type="number"] {
 .pricing-card,
 .extra-card,
 .device-card,
+.manage-card,
 .info-list {
   padding: 16px;
 }
@@ -736,7 +741,9 @@ input[type="number"] {
 }
 
 .stack-form > input[type="text"],
-.stack-form > input[type="number"] {
+.stack-form > input[type="number"],
+.stack-form > textarea,
+.stack-form > select {
   margin-bottom: 14px;
 }
 
@@ -747,7 +754,9 @@ input[type="number"] {
 }
 
 input[type="text"],
-input[type="number"] {
+input[type="number"],
+textarea,
+select {
   width: 100%;
   padding: 13px 14px;
   border: 1px solid var(--border-soft);
@@ -757,9 +766,15 @@ input[type="number"] {
 }
 
 input[type="text"]:focus,
-input[type="number"]:focus {
+input[type="number"]:focus,
+textarea:focus,
+select:focus {
   border-color: var(--purple);
   box-shadow: 0 0 0 3px rgba(157, 92, 255, 0.16);
+}
+
+textarea {
+  resize: vertical;
 }
 
 .button {
@@ -953,7 +968,7 @@ input[type="number"]:focus {
 }
 
 .license-meta {
-  grid-template-columns: repeat(3, minmax(0, 1fr));
+  grid-template-columns: repeat(6, minmax(0, 1fr));
   margin-bottom: 18px;
 }
 
@@ -981,6 +996,70 @@ input[type="number"]:focus {
 
 .devices-grid {
   grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+
+.manage-grid {
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  margin-top: 16px;
+}
+
+.manage-card {
+  display: grid;
+  gap: 14px;
+}
+
+.instance-list,
+.webhook-event-list {
+  display: grid;
+  gap: 12px;
+}
+
+.instance-card {
+  padding: 14px;
+  border: 1px solid var(--border-soft);
+  border-radius: 14px;
+  background: rgba(255, 255, 255, 0.03);
+}
+
+.instance-card h5 {
+  margin: 0 0 8px;
+  font-size: 1rem;
+}
+
+.instance-meta {
+  margin: 0;
+  color: var(--muted);
+  line-height: 1.55;
+}
+
+.webhook-event {
+  display: flex;
+  gap: 12px;
+  align-items: flex-start;
+  padding: 14px;
+  border: 1px solid var(--border-soft);
+  border-radius: 14px;
+  background: rgba(255, 255, 255, 0.03);
+}
+
+.webhook-event input {
+  margin-top: 5px;
+  accent-color: var(--purple);
+}
+
+.webhook-event strong {
+  display: block;
+  margin-bottom: 6px;
+}
+
+.webhook-event p {
+  margin: 0;
+  color: var(--muted);
+  line-height: 1.5;
+}
+
+.inline-download-list {
+  margin-top: 0;
 }
 
 .device-check {
@@ -1140,6 +1219,24 @@ input[type="number"]:focus {
   color: #eadcff;
 }
 
+.download-badge.recommended {
+  border-color: rgba(130, 223, 180, 0.28);
+  background: rgba(130, 223, 180, 0.08);
+  color: #dff7eb;
+}
+
+.download-badge.beta {
+  border-color: rgba(240, 199, 124, 0.28);
+  background: rgba(240, 199, 124, 0.08);
+  color: #ffe8b4;
+}
+
+.download-badge.legacy {
+  border-color: rgba(157, 92, 255, 0.34);
+  background: rgba(157, 92, 255, 0.08);
+  color: #eadcff;
+}
+
 .download-access-panel {
   margin-top: 16px;
   padding: 16px;
@@ -1229,6 +1326,7 @@ input[type="number"]:focus {
   .pricing-grid,
   .license-meta,
   .devices-grid,
+  .manage-grid,
   .calculator-grid,
   .calculator-results,
   .checks-preview-grid,

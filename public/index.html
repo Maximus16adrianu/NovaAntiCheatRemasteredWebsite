@@ -34,7 +34,7 @@
         <a class="ghost-link" href="#pricing-card">Pricing</a>
         <a class="ghost-link" href="#buy-card">Buy</a>
         <a class="ghost-link" href="#renew-card">Renew</a>
-        <a class="ghost-link" href="#reset-card">Reset HWID</a>
+        <a class="ghost-link" href="#reset-card">Manage License</a>
       </nav>
     </header>
 
@@ -249,10 +249,10 @@
       </section>
 
       <section id="reset-card" class="panel reset-card">
-        <p class="section-pill">Reset HWID</p>
-        <h3>Reset your HWIDs</h3>
+        <p class="section-pill">Manage License</p>
+        <h3>Manage your license</h3>
         <p class="section-copy">
-          Enter the license user and key, review the registered devices and only reset the ones you actually want removed.
+          Enter the license user and key to view expiry, devices, instances, downloads and your Discord webhook settings in one place.
         </p>
 
         <form id="lookupForm" class="stack-form">
@@ -262,7 +262,7 @@
           <label class="field-label" for="licenseKey">License key</label>
           <div class="input-row">
             <input id="licenseKey" name="licenseKey" type="text" autocomplete="off" spellcheck="false" placeholder="NOVA-XXXXXX-XXXXXX-XXXXXX" required>
-            <button id="lookupButton" type="submit" class="button button-primary">Lookup</button>
+            <button id="lookupButton" type="submit" class="button button-primary">Open portal</button>
           </div>
         </form>
 
@@ -279,21 +279,77 @@
               <strong id="licenseUser">-</strong>
             </div>
             <div>
+              <span class="meta-label">Expiry</span>
+              <strong id="licenseExpiry">-</strong>
+            </div>
+            <div>
+              <span class="meta-label">Slots</span>
+              <strong id="licenseSlots">-</strong>
+            </div>
+            <div>
               <span class="meta-label">Cooldown</span>
               <strong id="resetCooldown">Ready</strong>
             </div>
+            <div>
+              <span class="meta-label">Webhook</span>
+              <strong id="webhookStatus">Not configured</strong>
+            </div>
           </div>
 
-          <div class="devices-header">
-            <h4>Registered devices</h4>
-            <span id="deviceCountChip" class="small-chip">0 devices</span>
+          <div class="manage-grid">
+            <section class="manage-card">
+              <div class="devices-header">
+                <h4>Registered devices</h4>
+                <span id="deviceCountChip" class="small-chip">0 devices</span>
+              </div>
+
+              <div id="devicesList" class="devices-grid"></div>
+
+              <div class="actions-row">
+                <button id="submitResetButton" type="button" class="button button-primary" disabled>Reset selected HWIDs</button>
+                <button id="clearSelectionButton" type="button" class="button button-secondary" disabled>Clear selection</button>
+              </div>
+            </section>
+
+            <section class="manage-card">
+              <div class="devices-header">
+                <h4>Stored instances</h4>
+                <span id="instanceCountChip" class="small-chip">0 instances</span>
+              </div>
+              <div id="instancesList" class="instance-list"></div>
+            </section>
           </div>
 
-          <div id="devicesList" class="devices-grid"></div>
+          <div class="manage-grid">
+            <section class="manage-card">
+              <div class="devices-header">
+                <h4>Allowed downloads</h4>
+                <span id="manageDownloadCountChip" class="small-chip">0 builds</span>
+              </div>
+              <div id="manageDownloadsList" class="download-list inline-download-list"></div>
+            </section>
 
-          <div class="actions-row">
-            <button id="submitResetButton" type="button" class="button button-primary" disabled>Reset selected HWIDs</button>
-            <button id="clearSelectionButton" type="button" class="button button-secondary" disabled>Clear selection</button>
+            <section class="manage-card">
+              <div class="devices-header">
+                <h4>Discord webhook</h4>
+                <span id="webhookCountChip" class="small-chip">0 alerts</span>
+              </div>
+
+              <form id="webhookForm" class="stack-form">
+                <label class="field-label" for="manageWebhookUrl">Discord webhook URL</label>
+                <input id="manageWebhookUrl" type="text" autocomplete="off" spellcheck="false" placeholder="https://discord.com/api/webhooks/...">
+
+                <div>
+                  <span class="field-label">Send these alerts</span>
+                  <div id="manageWebhookEvents" class="webhook-event-list"></div>
+                </div>
+
+                <div class="actions-row">
+                  <button id="saveWebhookButton" type="submit" class="button button-primary">Save webhook</button>
+                  <button id="clearWebhookButton" type="button" class="button button-secondary">Clear webhook</button>
+                </div>
+              </form>
+            </section>
           </div>
         </section>
       </section>
@@ -316,7 +372,7 @@
       <a class="mobile-nav-link" href="#pricing-card">Pricing</a>
       <a class="mobile-nav-link" href="#buy-card">Buy</a>
       <a class="mobile-nav-link" href="#renew-card">Renew</a>
-      <a class="mobile-nav-link" href="#reset-card">Reset HWID</a>
+      <a class="mobile-nav-link" href="#reset-card">Manage License</a>
     </nav>
   </aside>
 
@@ -336,7 +392,7 @@
       <section id="downloadAccessPanel" class="download-access-panel hidden">
         <div class="download-access-copy">
           <strong id="downloadAccessTitle">Buyer-only download</strong>
-          <p>This jar is limited to active buyers. Enter the same license user and key you use for HWID reset.</p>
+          <p>This jar is limited to active buyers. Enter the same license user and key you use in the manage license section.</p>
         </div>
 
         <form id="downloadAccessForm" class="stack-form">

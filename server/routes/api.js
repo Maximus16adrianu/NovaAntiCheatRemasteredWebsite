@@ -6,10 +6,13 @@ const { createSignedServerTimePayload } = require("../secure-transport");
 const {
   activateLicense,
   heartbeatLicenseSession,
+  lookupManageState,
   lookupResetState,
   resetLicenseDevicesByKey,
-  shutdownLicenseSession
+  shutdownLicenseSession,
+  updateSelfServiceWebhook
 } = require("../licenses");
+const { assertPluginAccessAllowed, assertPublicAccessAllowed } = require("../system-state");
 
 function createApiRouter() {
   const router = express.Router();
@@ -33,6 +36,14 @@ function createApiRouter() {
   }
 
   pluginRouter.use(pluginLimiter);
+  pluginRouter.use((req, _res, next) => {
+    try {
+      assertPluginAccessAllowed();
+      next();
+    } catch (error) {
+      next(error);
+    }
+  });
 
   pluginRouter.get("/time", (_req, res) => {
     res.json(createSignedServerTimePayload());
@@ -87,9 +98,55 @@ function createApiRouter() {
 
   router.use("/plugin", pluginRouter);
 
+  router.post("/manage/lookup", publicLimiter, (req, res, next) => {
+    try {
+      assertPublicAccessAllowed("License management");
+      const result = lookupManageState({
+        licenseKey: req.body.licenseKey,
+        username: req.body.username,
+        ipAddress: req.ip
+      });
+      res.json(result);
+    } catch (error) {
+      next(error);
+    }
+  });
+
+  router.post("/manage/reset", publicLimiter, (req, res, next) => {
+    try {
+      assertPublicAccessAllowed("License management");
+      const result = resetLicenseDevicesByKey(req.body.licenseKey, req.body.username, req.body.deviceIds);
+      res.json({
+        ...result,
+        message: "Selected HWIDs were reset."
+      });
+    } catch (error) {
+      next(error);
+    }
+  });
+
+  router.post("/manage/webhook", publicLimiter, (req, res, next) => {
+    try {
+      assertPublicAccessAllowed("License management");
+      const result = updateSelfServiceWebhook(req.body.licenseKey, req.body.username, {
+        webhookUrl: req.body.webhookUrl,
+        events: req.body.events
+      });
+      res.json({
+        ...result,
+        message: result.webhook?.configured
+          ? "Webhook saved."
+          : "Webhook removed."
+      });
+    } catch (error) {
+      next(error);
+    }
+  });
+
   router.post("/reset/lookup", publicLimiter, (req, res, next) => {
     try {
-      const result = lookupResetState({
+      assertPublicAccessAllowed("License management");
+      const result = lookupManageState({
         licenseKey: req.body.licenseKey,
         username: req.body.username,
         ipAddress: req.ip
@@ -102,6 +159,7 @@ function createApiRouter() {
 
   router.post("/reset/submit", publicLimiter, (req, res, next) => {
     try {
+      assertPublicAccessAllowed("License management");
       const result = resetLicenseDevicesByKey(req.body.licenseKey, req.body.username, req.body.deviceIds);
       res.json({
         ...result,
@@ -114,6 +172,7 @@ function createApiRouter() {
 
   router.get("/downloads", publicLimiter, (req, res, next) => {
     try {
+      assertPublicAccessAllowed("Jar downloads");
       const result = listPublicDownloadJars(req.ip);
       res.json({
         ok: true,
@@ -126,6 +185,7 @@ function createApiRouter() {
 
   router.get("/downloads/:jarId", (req, res, next) => {
     try {
+      assertPublicAccessAllowed("Jar downloads");
       const result = claimJarDownload(Number.parseInt(req.params.jarId, 10), req.ip);
       return sendJarDownload(res, next, result);
     } catch (error) {
@@ -135,6 +195,7 @@ function createApiRouter() {
 
   router.post("/downloads/:jarId", publicLimiter, (req, res, next) => {
     try {
+      assertPublicAccessAllowed("Jar downloads");
       const result = claimJarDownload(Number.parseInt(req.params.jarId, 10), req.ip, {
         licenseKey: req.body?.licenseKey,
         username: req.body?.username

@@ -2,7 +2,10 @@ const state = {
   licenseKey: "",
   licenseUser: "",
   devices: [],
+  instances: [],
   downloads: [],
+  manageDownloads: [],
+  webhookEvents: [],
   downloadLicenseKey: "",
   downloadLicenseUser: "",
   pendingDownloadJarId: null,
@@ -29,9 +32,22 @@ const elements = {
   lookupResult: document.getElementById("lookupResult"),
   licenseDisplayName: document.getElementById("licenseDisplayName"),
   licenseUser: document.getElementById("licenseUser"),
+  licenseExpiry: document.getElementById("licenseExpiry"),
+  licenseSlots: document.getElementById("licenseSlots"),
   resetCooldown: document.getElementById("resetCooldown"),
+  webhookStatus: document.getElementById("webhookStatus"),
   deviceCountChip: document.getElementById("deviceCountChip"),
   devicesList: document.getElementById("devicesList"),
+  instanceCountChip: document.getElementById("instanceCountChip"),
+  instancesList: document.getElementById("instancesList"),
+  manageDownloadCountChip: document.getElementById("manageDownloadCountChip"),
+  manageDownloadsList: document.getElementById("manageDownloadsList"),
+  webhookCountChip: document.getElementById("webhookCountChip"),
+  webhookForm: document.getElementById("webhookForm"),
+  manageWebhookUrl: document.getElementById("manageWebhookUrl"),
+  manageWebhookEvents: document.getElementById("manageWebhookEvents"),
+  saveWebhookButton: document.getElementById("saveWebhookButton"),
+  clearWebhookButton: document.getElementById("clearWebhookButton"),
   submitResetButton: document.getElementById("submitResetButton"),
   clearSelectionButton: document.getElementById("clearSelectionButton"),
   calcSlots: document.getElementById("calcSlots"),
@@ -145,6 +161,20 @@ function formatDate(isoValue) {
   return date.toLocaleString();
 }
 
+function formatExpiry(license) {
+  if (!license) {
+    return "-";
+  }
+  if (license.licenseType === "lifetime") {
+    return "Lifetime";
+  }
+  if (!license.expiresAt) {
+    return "No expiry";
+  }
+  const base = formatDate(license.expiresAt);
+  return license.expired ? `${base} (expired)` : base;
+}
+
 function formatMoney(value) {
   const amount = Number(value || 0);
   if (Number.isInteger(amount)) {
@@ -191,6 +221,39 @@ function formatDuration(ms) {
     parts.push(`${minutes}m`);
   }
   return parts.join(" ");
+}
+
+function getChannelBadge(jar) {
+  if (jar?.releaseChannel === "beta") {
+    return '<span class="download-badge beta">Beta</span>';
+  }
+  if (jar?.releaseChannel === "legacy") {
+    return '<span class="download-badge legacy">Legacy</span>';
+  }
+  return '<span class="download-badge subtle">Stable</span>';
+}
+
+function buildDownloadCardHtml(jar, buttonAttributeName = "data-download-jar-id") {
+  const buttonLabel = jar.requiresBuyerLicense ? "Buyer download" : "Download";
+  return `
+    <div class="download-card-head">
+      <div>
+        <h4>${escapeHtml(jar.displayName || jar.downloadName || jar.originalName || "Nova jar")}</h4>
+        <div class="download-card-meta">
+          ${jar.recommended ? '<span class="download-badge recommended">Recommended</span>' : ""}
+          ${getChannelBadge(jar)}
+          ${getDownloadAccessBadge(jar)}
+          ${jar.supportedVersions ? `<span class="download-badge subtle">${escapeHtml(jar.supportedVersions)}</span>` : ""}
+          <span class="download-badge subtle">${escapeHtml(jar.originalName || jar.downloadName || "jar")}</span>
+          <span class="download-badge subtle">${escapeHtml(formatBytes(jar.fileSize || 0))}</span>
+          <span class="download-badge subtle">Updated ${escapeHtml(formatDate(jar.updatedAt))}</span>
+        </div>
+      </div>
+      <button class="button button-primary" type="button" ${buttonAttributeName}="${jar.id}">${buttonLabel}</button>
+    </div>
+    <p>${escapeHtml(jar.notes || "Official Nova jar download.")}</p>
+    ${jar.changelog ? `<p>${escapeHtml(jar.changelog)}</p>` : ""}
+  `;
 }
 
 function getSelectedDeviceIds() {
@@ -249,21 +312,169 @@ function renderDevices(devices) {
   updateActionState();
 }
 
+function renderInstances(instances) {
+  state.instances = Array.isArray(instances) ? instances : [];
+  if (!elements.instancesList || !elements.instanceCountChip) {
+    return;
+  }
+
+  elements.instancesList.innerHTML = "";
+  elements.instanceCountChip.textContent = `${state.instances.length} instance${state.instances.length === 1 ? "" : "s"}`;
+
+  if (state.instances.length === 0) {
+    elements.instancesList.innerHTML = `<div class="download-empty">No stored instances are registered for this license.</div>`;
+    return;
+  }
+
+  const fragment = document.createDocumentFragment();
+  for (const instance of state.instances) {
+    const card = document.createElement("article");
+    card.className = "instance-card";
+    const status = instance.online
+      ? "Online"
+      : (instance.slotClaimed ? "Offline slot claimed" : (instance.active ? "Stored offline" : "Reset"));
+    card.innerHTML = `
+      <h5>${escapeHtml(instance.instanceName || "Unknown instance")}</h5>
+      <div class="device-chip-row">
+        <span class="device-chip">${escapeHtml(status)}</span>
+        <span class="device-chip">${escapeHtml(instance.lastServerName || "Unknown server")}</span>
+      </div>
+      <p class="instance-meta">
+        Device: ${escapeHtml(instance.deviceName || "Unknown device")}<br>
+        First seen: ${escapeHtml(formatDate(instance.firstSeenAt))}<br>
+        Last seen: ${escapeHtml(formatDate(instance.lastSeenAt))}<br>
+        Instance: ${escapeHtml(instance.instanceUuid || instance.instanceHash || "-")}
+      </p>
+    `;
+    fragment.appendChild(card);
+  }
+
+  elements.instancesList.appendChild(fragment);
+}
+
+function renderManageDownloads(jars) {
+  state.manageDownloads = Array.isArray(jars) ? jars : [];
+  if (!elements.manageDownloadsList || !elements.manageDownloadCountChip) {
+    return;
+  }
+
+  elements.manageDownloadsList.innerHTML = "";
+  elements.manageDownloadCountChip.textContent = `${state.manageDownloads.length} build${state.manageDownloads.length === 1 ? "" : "s"}`;
+
+  if (state.manageDownloads.length === 0) {
+    elements.manageDownloadsList.innerHTML = `<div class="download-empty">No downloads are available for this license right now.</div>`;
+    return;
+  }
+
+  const fragment = document.createDocumentFragment();
+  for (const jar of state.manageDownloads) {
+    const card = document.createElement("article");
+    card.className = "download-card";
+    card.innerHTML = buildDownloadCardHtml(jar, "data-manage-download-jar-id");
+    fragment.appendChild(card);
+  }
+
+  elements.manageDownloadsList.appendChild(fragment);
+  updateDownloadCooldownUi();
+}
+
+function renderWebhookSettings(webhook, definitions) {
+  const configured = Boolean(webhook?.configured);
+  state.webhookEvents = Array.isArray(definitions) ? definitions : [];
+  if (elements.manageWebhookUrl) {
+    elements.manageWebhookUrl.value = webhook?.url || "";
+  }
+  if (elements.webhookStatus) {
+    elements.webhookStatus.textContent = configured ? "Configured" : "Not configured";
+  }
+  if (elements.webhookCountChip) {
+    const enabledCount = Object.values(webhook?.events || {}).filter(Boolean).length;
+    elements.webhookCountChip.textContent = `${enabledCount} alert${enabledCount === 1 ? "" : "s"}`;
+  }
+  if (!elements.manageWebhookEvents) {
+    return;
+  }
+
+  elements.manageWebhookEvents.innerHTML = "";
+  const fragment = document.createDocumentFragment();
+  for (const definition of state.webhookEvents) {
+    const checked = webhook?.events?.[definition.id] !== false;
+    const label = document.createElement("label");
+    label.className = "webhook-event";
+    label.innerHTML = `
+      <input type="checkbox" data-webhook-event-id="${escapeHtml(definition.id)}"${checked ? " checked" : ""}>
+      <div>
+        <strong>${escapeHtml(definition.label)}</strong>
+        <p>${escapeHtml(definition.description)}</p>
+      </div>
+    `;
+    fragment.appendChild(label);
+  }
+  elements.manageWebhookEvents.appendChild(fragment);
+}
+
 function renderLookupResult(payload) {
   const license = payload.license || {};
   elements.lookupResult.classList.remove("hidden");
   elements.licenseDisplayName.textContent = license.displayName || license.key || "Unknown license";
   elements.licenseUser.textContent = license.customerUsername || "Unbound";
+  elements.licenseExpiry.textContent = formatExpiry(license);
+  elements.licenseSlots.textContent = `HWIDs ${license.activeDeviceCount || 0}/${license.maxSlots || license.maxHwids || 0} | Instances ${(license.onlineInstanceCount ?? license.activeInstanceCount ?? 0)}/${license.maxSlots || license.maxInstances || 0}`;
   elements.resetCooldown.textContent = payload.cooldownRemainingMs > 0
     ? `${formatDuration(payload.cooldownRemainingMs)} remaining`
     : "Ready now";
+  state.downloadLicenseUser = license.customerUsername || state.licenseUser;
+  state.downloadLicenseKey = license.key || state.licenseKey;
   renderDevices(payload.devices || []);
+  renderInstances(payload.instances || []);
+  renderManageDownloads(payload.downloads || []);
+  renderWebhookSettings(payload.webhook || {}, payload.webhookEvents || []);
 }
 
 function clearResult() {
   elements.lookupResult.classList.add("hidden");
   elements.devicesList.innerHTML = "";
+  elements.licenseDisplayName.textContent = "-";
+  elements.licenseUser.textContent = "-";
+  if (elements.licenseExpiry) {
+    elements.licenseExpiry.textContent = "-";
+  }
+  if (elements.licenseSlots) {
+    elements.licenseSlots.textContent = "-";
+  }
+  if (elements.webhookStatus) {
+    elements.webhookStatus.textContent = "Not configured";
+  }
+  if (elements.instancesList) {
+    elements.instancesList.innerHTML = "";
+  }
+  if (elements.manageDownloadsList) {
+    elements.manageDownloadsList.innerHTML = "";
+  }
+  if (elements.manageWebhookEvents) {
+    elements.manageWebhookEvents.innerHTML = "";
+  }
+  if (elements.manageWebhookUrl) {
+    elements.manageWebhookUrl.value = "";
+  }
   state.devices = [];
+  state.instances = [];
+  state.manageDownloads = [];
+  state.webhookEvents = [];
+  state.downloadLicenseKey = "";
+  state.downloadLicenseUser = "";
+  if (elements.deviceCountChip) {
+    elements.deviceCountChip.textContent = "0 devices";
+  }
+  if (elements.instanceCountChip) {
+    elements.instanceCountChip.textContent = "0 instances";
+  }
+  if (elements.manageDownloadCountChip) {
+    elements.manageDownloadCountChip.textContent = "0 builds";
+  }
+  if (elements.webhookCountChip) {
+    elements.webhookCountChip.textContent = "0 alerts";
+  }
   updateActionState();
 }
 
@@ -311,9 +522,9 @@ async function lookupLicense(event) {
   setBusy(elements.lookupButton, true, "Looking up...");
 
   try {
-    const payload = await postJson("/api/reset/lookup", { licenseKey, username: licenseUser });
+    const payload = await postJson("/api/manage/lookup", { licenseKey, username: licenseUser });
     renderLookupResult(payload);
-    showStatus("License loaded. Select the devices you want to reset.", "success");
+    showStatus("License loaded. You can now manage resets, downloads and webhook alerts.", "success");
   } catch (error) {
     showStatus(error.message, "error");
   } finally {
@@ -341,7 +552,7 @@ async function submitReset() {
   setBusy(elements.submitResetButton, true, "Resetting...");
 
   try {
-    const payload = await postJson("/api/reset/submit", {
+    const payload = await postJson("/api/manage/reset", {
       licenseKey: state.licenseKey,
       username: state.licenseUser,
       deviceIds: selectedIds
@@ -360,6 +571,63 @@ function clearSelection() {
     input.checked = false;
   });
   updateActionState();
+}
+
+function getSelectedWebhookEvents() {
+  const events = {};
+  document.querySelectorAll("[data-webhook-event-id]").forEach((input) => {
+    events[input.dataset.webhookEventId] = Boolean(input.checked);
+  });
+  return events;
+}
+
+async function saveWebhook(event) {
+  event.preventDefault();
+  clearStatus();
+
+  if (!state.licenseKey || !state.licenseUser) {
+    showStatus("Run a license lookup first.", "error");
+    return;
+  }
+
+  setBusy(elements.saveWebhookButton, true, "Saving...");
+  try {
+    const payload = await postJson("/api/manage/webhook", {
+      licenseKey: state.licenseKey,
+      username: state.licenseUser,
+      webhookUrl: elements.manageWebhookUrl.value.trim(),
+      events: getSelectedWebhookEvents()
+    });
+    renderLookupResult(payload);
+    showStatus(payload.message || "Webhook saved.", "success");
+  } catch (error) {
+    showStatus(error.message, "error");
+  } finally {
+    setBusy(elements.saveWebhookButton, false, "Saving...");
+  }
+}
+
+async function clearWebhook() {
+  if (!state.licenseKey || !state.licenseUser) {
+    showStatus("Run a license lookup first.", "error");
+    return;
+  }
+
+  setBusy(elements.clearWebhookButton, true, "Clearing...");
+  try {
+    const payload = await postJson("/api/manage/webhook", {
+      licenseKey: state.licenseKey,
+      username: state.licenseUser,
+      webhookUrl: "",
+      events: getSelectedWebhookEvents()
+    });
+    renderLookupResult(payload);
+    showStatus(payload.message || "Webhook removed.", "success");
+  } catch (error) {
+    showStatus(error.message, "error");
+  } finally {
+    setBusy(elements.clearWebhookButton, false, "Clearing...");
+  }
 }
 
 function openModal(modal) {
@@ -448,7 +716,7 @@ function updateDownloadCooldownUi() {
     elements.downloadsCooldown.textContent = "";
   }
 
-  document.querySelectorAll("[data-download-jar-id]").forEach((button) => {
+  document.querySelectorAll("[data-download-jar-id], [data-manage-download-jar-id]").forEach((button) => {
     const isCoolingDown = remaining > 0;
     button.disabled = isCoolingDown;
     if (!button.dataset.defaultLabel) {
@@ -503,24 +771,9 @@ function renderDownloads(jars) {
 
   const fragment = document.createDocumentFragment();
   for (const jar of state.downloads) {
-    const buttonLabel = jar.requiresBuyerLicense ? "Buyer download" : "Download";
     const card = document.createElement("article");
     card.className = "download-card";
-    card.innerHTML = `
-      <div class="download-card-head">
-        <div>
-          <h4>${escapeHtml(jar.displayName || jar.downloadName || jar.originalName || "Nova jar")}</h4>
-          <div class="download-card-meta">
-            ${getDownloadAccessBadge(jar)}
-            <span class="download-badge subtle">${escapeHtml(jar.originalName || jar.downloadName || "jar")}</span>
-            <span class="download-badge subtle">${escapeHtml(formatBytes(jar.fileSize || 0))}</span>
-            <span class="download-badge subtle">Updated ${escapeHtml(formatDate(jar.updatedAt))}</span>
-          </div>
-        </div>
-        <button class="button button-primary" type="button" data-download-jar-id="${jar.id}">${buttonLabel}</button>
-      </div>
-      <p>${escapeHtml(jar.notes || "Official Nova jar download.")}</p>
-    `;
+    card.innerHTML = buildDownloadCardHtml(jar, "data-download-jar-id");
     fragment.appendChild(card);
   }
 
@@ -582,8 +835,8 @@ function getDownloadNameFromResponse(response, fallbackName = "nova-build.jar") 
   return fallbackName;
 }
 
-async function downloadJar(jarId, button) {
-  const jar = state.downloads.find((entry) => entry.id === jarId);
+async function downloadJar(jarId, button, collection = state.downloads) {
+  const jar = (Array.isArray(collection) ? collection : []).find((entry) => entry.id === jarId);
   if (!jar) {
     return;
   }
@@ -672,7 +925,21 @@ function handleDownloadsClick(event) {
     return;
   }
 
-  downloadJar(jarId, button);
+  downloadJar(jarId, button, state.downloads);
+}
+
+function handleManageDownloadsClick(event) {
+  const button = event.target.closest("button[data-manage-download-jar-id]");
+  if (!button) {
+    return;
+  }
+
+  const jarId = Number.parseInt(button.dataset.manageDownloadJarId || "", 10);
+  if (!Number.isFinite(jarId)) {
+    return;
+  }
+
+  downloadJar(jarId, button, state.manageDownloads);
 }
 
 async function submitDownloadAccess(event) {
@@ -701,7 +968,7 @@ async function submitDownloadAccess(event) {
   state.downloadLicenseKey = licenseKey;
 
   const button = elements.downloadsList?.querySelector(`[data-download-jar-id="${jar.id}"]`);
-  await downloadJar(jar.id, button);
+  await downloadJar(jar.id, button, state.downloads);
 }
 
 function escapeHtml(value) {
@@ -918,6 +1185,16 @@ elements.mobileMenuButton?.addEventListener("click", toggleMobileMenu);
 elements.closeMobileMenuButton?.addEventListener("click", closeMobileMenu);
 elements.mobileNavOverlay?.addEventListener("click", closeMobileMenu);
 elements.lookupForm.addEventListener("submit", lookupLicense);
+elements.webhookForm?.addEventListener("submit", (event) => {
+  saveWebhook(event).catch((error) => {
+    showStatus(error.message, "error");
+  });
+});
+elements.clearWebhookButton?.addEventListener("click", () => {
+  clearWebhook().catch((error) => {
+    showStatus(error.message, "error");
+  });
+});
 elements.submitResetButton.addEventListener("click", submitReset);
 elements.clearSelectionButton.addEventListener("click", clearSelection);
 elements.openChecksButton?.addEventListener("click", openChecksModal);
@@ -931,6 +1208,7 @@ elements.openDownloadsButton?.addEventListener("click", () => {
 });
 elements.closeDownloadsButton?.addEventListener("click", closeDownloadsModal);
 elements.downloadsList?.addEventListener("click", handleDownloadsClick);
+elements.manageDownloadsList?.addEventListener("click", handleManageDownloadsClick);
 elements.downloadAccessForm?.addEventListener("submit", (event) => {
   submitDownloadAccess(event).catch((error) => {
     showDownloadStatus(error.message, "error");

@@ -42,6 +42,8 @@ function initializeDatabase() {
       max_instances INTEGER NOT NULL DEFAULT 1,
       active INTEGER NOT NULL DEFAULT 1,
       notes TEXT NOT NULL DEFAULT '',
+      webhook_url TEXT NOT NULL DEFAULT '',
+      webhook_events_json TEXT NOT NULL DEFAULT '{}',
       reset_interval_days INTEGER NOT NULL DEFAULT 30,
       next_reset_at TEXT,
       created_at TEXT NOT NULL,
@@ -120,7 +122,11 @@ function initializeDatabase() {
       id INTEGER PRIMARY KEY AUTOINCREMENT,
       display_name TEXT NOT NULL,
       notes TEXT NOT NULL DEFAULT '',
+      changelog TEXT NOT NULL DEFAULT '',
+      supported_versions TEXT NOT NULL DEFAULT '',
+      release_channel TEXT NOT NULL DEFAULT 'stable',
       access_scope TEXT NOT NULL DEFAULT 'buyers',
+      recommended INTEGER NOT NULL DEFAULT 0,
       stored_name TEXT NOT NULL UNIQUE,
       original_name TEXT NOT NULL DEFAULT '',
       file_size INTEGER NOT NULL DEFAULT 0,
@@ -143,17 +149,43 @@ function initializeDatabase() {
       cooldown_until TEXT NOT NULL,
       last_lookup_at TEXT NOT NULL
     );
+
+    CREATE TABLE IF NOT EXISTS system_settings (
+      setting_key TEXT PRIMARY KEY,
+      value_json TEXT NOT NULL DEFAULT '{}',
+      updated_at TEXT NOT NULL
+    );
+
+    CREATE TABLE IF NOT EXISTS webhook_notifications (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      license_id INTEGER,
+      event_key TEXT NOT NULL,
+      dedupe_key TEXT NOT NULL UNIQUE,
+      status TEXT NOT NULL DEFAULT 'queued',
+      payload_json TEXT NOT NULL DEFAULT '{}',
+      created_at TEXT NOT NULL,
+      delivered_at TEXT,
+      response_status INTEGER,
+      response_body TEXT NOT NULL DEFAULT '',
+      FOREIGN KEY (license_id) REFERENCES licenses(id) ON DELETE SET NULL
+    );
   `);
 
   ensureColumn(db, "licenses", "license_type", "TEXT NOT NULL DEFAULT 'monthly'");
   ensureColumn(db, "licenses", "expires_at", "TEXT");
   ensureColumn(db, "licenses", "max_instances", "INTEGER NOT NULL DEFAULT 1");
+  ensureColumn(db, "licenses", "webhook_url", "TEXT NOT NULL DEFAULT ''");
+  ensureColumn(db, "licenses", "webhook_events_json", "TEXT NOT NULL DEFAULT '{}'");
   ensureColumn(db, "service_sessions", "instance_id", "INTEGER");
   ensureColumn(db, "service_sessions", "instance_hash", "TEXT NOT NULL DEFAULT ''");
   ensureColumn(db, "service_sessions", "instance_name", "TEXT NOT NULL DEFAULT ''");
   ensureColumn(db, "license_instances", "slot_claimed", "INTEGER NOT NULL DEFAULT 0");
   ensureColumn(db, "download_jars", "notes", "TEXT NOT NULL DEFAULT ''");
+  ensureColumn(db, "download_jars", "changelog", "TEXT NOT NULL DEFAULT ''");
+  ensureColumn(db, "download_jars", "supported_versions", "TEXT NOT NULL DEFAULT ''");
+  ensureColumn(db, "download_jars", "release_channel", "TEXT NOT NULL DEFAULT 'stable'");
   ensureColumn(db, "download_jars", "access_scope", "TEXT NOT NULL DEFAULT 'buyers'");
+  ensureColumn(db, "download_jars", "recommended", "INTEGER NOT NULL DEFAULT 0");
   ensureColumn(db, "download_jars", "original_name", "TEXT NOT NULL DEFAULT ''");
   ensureColumn(db, "download_jars", "mime_type", "TEXT NOT NULL DEFAULT 'application/java-archive'");
   ensureColumn(db, "download_jars", "sort_order", "INTEGER NOT NULL DEFAULT 0");
@@ -172,6 +204,18 @@ function initializeDatabase() {
   `);
 
   db.exec(`
+    UPDATE download_jars
+       SET release_channel = CASE
+         WHEN lower(trim(release_channel)) IN ('stable', 'beta', 'legacy') THEN lower(trim(release_channel))
+         ELSE 'stable'
+       END,
+           recommended = CASE
+         WHEN recommended = 1 THEN 1
+         ELSE 0
+       END
+  `);
+
+  db.exec(`
     CREATE INDEX IF NOT EXISTS idx_licenses_key ON licenses (license_key);
     CREATE INDEX IF NOT EXISTS idx_licenses_expiry ON licenses (active, expires_at);
     CREATE INDEX IF NOT EXISTS idx_devices_license_active ON license_devices (license_id, active);
@@ -181,6 +225,7 @@ function initializeDatabase() {
     CREATE INDEX IF NOT EXISTS idx_sessions_open ON service_sessions (closed_at, license_id, device_id);
     CREATE INDEX IF NOT EXISTS idx_sessions_instance_open ON service_sessions (closed_at, instance_id);
     CREATE INDEX IF NOT EXISTS idx_audit_logs_license ON audit_logs (license_id, created_at);
+    CREATE INDEX IF NOT EXISTS idx_webhook_notifications_license ON webhook_notifications (license_id, created_at);
     CREATE INDEX IF NOT EXISTS idx_download_jars_sort ON download_jars (sort_order, id);
   `);
 

@@ -3,6 +3,7 @@ const path = require("path");
 const express = require("express");
 const archiver = require("archiver");
 const { config } = require("../config");
+const { getAuditLogFilterOptions, listAuditLogs, logAudit } = require("../activity");
 const { adminLimiter } = require("../middleware");
 const { getAdminKeyFromRequest, getDownloadKeyFromRequest, requireAdmin, validateAdminKey, validateDownloadKey } = require("../auth");
 const { getDatabase } = require("../database");
@@ -14,6 +15,7 @@ const {
   uploadJar,
 } = require("../jars");
 const {
+  addLicenseTime,
   adminResetDevices,
   adminResetInstances,
   createLicense,
@@ -26,7 +28,8 @@ const {
   listRecentSessions,
   updateLicense
 } = require("../licenses");
-const { reconcileSessions } = require("../sessions");
+const { closeAllSessions, reconcileSessions } = require("../sessions");
+const { assertAdminMutationAllowed, getLockdownState, setLockdownState } = require("../system-state");
 
 function createAdminRouter() {
   const router = express.Router();
@@ -42,12 +45,67 @@ function createAdminRouter() {
   });
 
   router.use(requireAdmin);
+  router.use((req, _res, next) => {
+    if (req.path === "/lockdown") {
+      return next();
+    }
+    if (req.method === "GET" || req.method === "HEAD" || req.method === "OPTIONS") {
+      return next();
+    }
+
+    try {
+      assertAdminMutationAllowed();
+      return next();
+    } catch (error) {
+      return next(error);
+    }
+  });
 
   router.get("/overview", (_req, res) => {
     res.json({
       ok: true,
       overview: getOverview()
     });
+  });
+
+  router.get("/lockdown", (_req, res) => {
+    res.json({
+      ok: true,
+      lockdown: getLockdownState()
+    });
+  });
+
+  router.post("/lockdown", (req, res, next) => {
+    try {
+      const enabled = Boolean(req.body?.enabled);
+      const reason = req.body?.reason || "";
+      const lockdown = setLockdownState({
+        enabled,
+        reason,
+        actor: "admin"
+      });
+      const closedSessions = enabled ? closeAllSessions("admin_lockdown") : 0;
+
+      logAudit({
+        actor: "admin",
+        action: enabled ? "system_lockdown_enabled" : "system_lockdown_disabled",
+        details: {
+          reason: lockdown.reason,
+          closedSessions
+        }
+      });
+
+      res.json({
+        ok: true,
+        lockdown,
+        closedSessions,
+        message: enabled
+          ? "Lockdown enabled. New auth, downloads and data changes are blocked."
+          : "Lockdown disabled."
+      });
+    } catch (error) {
+      next(error);
+    }
   });
 
   router.get("/licenses", (_req, res) => {
@@ -90,6 +148,19 @@ function createAdminRouter() {
         ok: true,
         license,
         message: "License time extended."
+      });
+    } catch (error) {
+      next(error);
+    }
+  });
+
+  router.post("/licenses/:licenseId/add-time", (req, res, next) => {
+    try {
+      const license = addLicenseTime(Number.parseInt(req.params.licenseId, 10), req.body || {});
+      res.json({
+        ok: true,
+        license,
+        message: "License time added."
       });
     } catch (error) {
       next(error);
@@ -168,6 +239,24 @@ function createAdminRouter() {
     });
   });
 
+  router.get("/audit-logs", (req, res, next) => {
+    try {
+      res.json({
+        ok: true,
+        filters: getAuditLogFilterOptions(),
+        logs: listAuditLogs({
+          licenseId: req.query.licenseId,
+          actor: req.query.actor,
+          action: req.query.action,
+          search: req.query.search,
+          limit: req.query.limit
+        })
+      });
+    } catch (error) {
+      next(error);
+    }
+  });
+
   router.get("/jars", (_req, res) => {
     res.json({
       ok: true,
@@ -180,6 +269,10 @@ function createAdminRouter() {
       const jar = uploadJar({
         displayName: req.query.displayName,
         notes: req.query.notes,
+        changelog: req.query.changelog,
+        supportedVersions: req.query.supportedVersions,
+        releaseChannel: req.query.releaseChannel,
+        recommended: req.query.recommended,
         accessScope: req.query.accessScope,
         originalName: req.query.originalName,
         mimeType: req.header("content-type"),

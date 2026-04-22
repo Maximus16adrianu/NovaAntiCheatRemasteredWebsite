@@ -71,6 +71,46 @@
           </article>
         </section>
 
+        <section class="ops-grid">
+          <article class="panel lockdown-panel">
+            <div class="section-head">
+              <div>
+                <p class="section-label">Lockdown</p>
+                <h2>Emergency cutoff</h2>
+                <p class="section-note">Immediately stop plugin auth, downloads, self-service actions and admin data changes.</p>
+              </div>
+              <div id="lockdownStateBadge" class="badge">Normal</div>
+            </div>
+
+            <div class="lockdown-layout">
+              <label class="lockdown-field" for="lockdownReasonField">
+                <span class="field-label">Reason</span>
+                <textarea id="lockdownReasonField" rows="3" placeholder="Optional reason shown in API errors and the admin panel"></textarea>
+              </label>
+
+              <div class="lockdown-summary">
+                <div class="summary-item">
+                  <span>Status</span>
+                  <strong id="lockdownStatusText">Normal</strong>
+                </div>
+                <div class="summary-item">
+                  <span>Since</span>
+                  <strong id="lockdownSinceText">-</strong>
+                </div>
+                <div class="summary-item">
+                  <span>Message</span>
+                  <strong id="lockdownReasonText">-</strong>
+                </div>
+              </div>
+            </div>
+
+            <div class="actions-row">
+              <button id="toggleLockdownButton" type="button" class="button button-danger">Enable lockdown</button>
+              <button id="refreshLockdownButton" type="button" class="button button-secondary">Refresh lockdown</button>
+            </div>
+          </article>
+        </section>
+
         <div id="adminStatus" class="status-banner hidden"></div>
 
         <section class="workspace-grid">
@@ -219,7 +259,7 @@
             <div>
               <p class="section-label">Downloads</p>
               <h2>Jar manager</h2>
-              <p class="section-note">Upload jars, choose whether they are public or buyer-only, then drag them to choose the order shown on the main page.</p>
+              <p class="section-note">Upload jars, choose their access, then drag them into the order shown on the main page.</p>
             </div>
           </div>
 
@@ -242,6 +282,25 @@
               </div>
 
               <div>
+                <label class="field-label" for="jarVersionsField">Supported versions</label>
+                <input id="jarVersionsField" type="text" autocomplete="off" spellcheck="false" placeholder="1.13-1.21.11, 1.8 legacy">
+              </div>
+
+              <div>
+                <label class="field-label" for="jarChannelField">Release channel</label>
+                <select id="jarChannelField">
+                  <option value="stable" selected>Stable</option>
+                  <option value="beta">Beta</option>
+                  <option value="legacy">Legacy</option>
+                </select>
+              </div>
+
+              <div>
+                <label class="field-label" for="jarChangelogField">Changelog</label>
+                <textarea id="jarChangelogField" rows="5" placeholder="What changed in this build?"></textarea>
+              </div>
+
+              <div>
                 <label class="field-label" for="jarAccessField">Download access</label>
                 <select id="jarAccessField">
                   <option value="buyers" selected>Buyers only</option>
@@ -249,6 +308,11 @@
                 </select>
                 <p class="field-help">Buyers only is the default. Public jars can be downloaded without a license.</p>
               </div>
+
+              <label class="checkbox-row">
+                <input id="jarRecommendedField" type="checkbox">
+                <span>Mark as the latest recommended build</span>
+              </label>
 
               <div class="actions-row">
                 <button id="uploadJarButton" type="submit" class="button button-primary">Upload jar</button>
@@ -259,7 +323,7 @@
               <div class="jar-manager-head">
                 <div>
                   <h3>Uploaded jars</h3>
-                  <p class="section-note">Drag cards to reorder them. The first card appears first in the public download modal.</p>
+                  <p class="section-note">Drag rows to reorder them. Open one when you want to edit the jar details.</p>
                 </div>
                 <span id="jarCountChip" class="jar-count-chip">0 jars</span>
               </div>
@@ -361,6 +425,45 @@
                 </tr>
               </thead>
               <tbody id="sessionsTableBody"></tbody>
+            </table>
+          </div>
+        </section>
+
+        <section class="panel audit-panel">
+          <div class="section-head">
+            <div>
+              <p class="section-label">Audit</p>
+              <h2>Audit logs</h2>
+              <p class="section-note">Filter plugin auth, resets, admin actions and lockdown changes.</p>
+            </div>
+            <div class="toolbar">
+              <button id="refreshAuditLogsButton" type="button" class="button button-secondary">Refresh</button>
+            </div>
+          </div>
+
+          <div class="audit-filter-grid">
+            <input id="auditSearchField" class="search-input" type="search" placeholder="Search key, user, action or details">
+            <select id="auditActorField">
+              <option value="">All actors</option>
+            </select>
+            <select id="auditActionField">
+              <option value="">All actions</option>
+            </select>
+            <input id="auditLimitField" type="number" min="10" max="500" value="150">
+          </div>
+
+          <div class="table-scroll">
+            <table class="data-table">
+              <thead>
+                <tr>
+                  <th>When</th>
+                  <th>Actor</th>
+                  <th>Action</th>
+                  <th>License</th>
+                  <th>Details</th>
+                </tr>
+              </thead>
+              <tbody id="auditLogsTableBody"></tbody>
             </table>
           </div>
         </section>

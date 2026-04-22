@@ -1,8 +1,16 @@
 const crypto = require("crypto");
 const { config } = require("./config");
+const {
+  getLicenseWebhookConfig,
+  getWebhookEventDefinitions,
+  logAudit,
+  normalizeDiscordWebhookUrl,
+  normalizeWebhookEventSettings
+} = require("./activity");
 const { getDatabase } = require("./database");
 const { buildHwidFingerprint } = require("./hwid");
 const { buildInstanceFingerprint } = require("./instance");
+const { listDownloadJarsForLicense } = require("./jars");
 const {
   closeOpenSessionsForInstance,
   closeSession,
@@ -138,6 +146,7 @@ function serializeLicense(row) {
     resetIntervalDays: row.reset_interval_days,
     nextResetAt,
     canResetNow: !nextResetTimestamp || nextResetTimestamp <= Date.now(),
+    webhookConfigured: Boolean(normalizeText(row.webhook_url)),
     activeDeviceCount: row.active_device_count ?? 0,
     activeInstanceCount: row.active_instance_count ?? 0,
     onlineInstanceCount: row.online_instance_count ?? 0,
@@ -196,14 +205,6 @@ function sanitizeServerInfo(server = {}) {
   };
 }
 
-function logAudit({ licenseId = null, deviceId = null, actor, action, details = {} }) {
-  const db = getDatabase();
-  db.prepare(`
-    INSERT INTO audit_logs (license_id, device_id, actor, action, details_json, created_at)
-    VALUES (?, ?, ?, ?, ?, ?)
-  `).run(licenseId, deviceId, actor, action, JSON.stringify(details), nowIso());
-}
-
 function getLicenseByKey(licenseKey) {
   return getDatabase().prepare(`${LICENSE_SELECT} WHERE l.license_key = ?`).get(normalizeText(licenseKey).toUpperCase());
 }
@@ -212,7 +213,7 @@ function getLicenseById(licenseId) {
   return getDatabase().prepare(`${LICENSE_SELECT} WHERE l.id = ?`).get(licenseId);
 }
 
-function getSelfServiceResetLicense(licenseKey, username) {
+function getSelfServiceManageLicense(licenseKey, username) {
   const license = getLicenseByKey(licenseKey);
   const normalizedUsername = normalizeIdentifier(username);
 
@@ -224,11 +225,18 @@ function getSelfServiceResetLicense(licenseKey, username) {
     throw new HttpError(404, "License key and user do not match.");
   }
 
+  return license;
+}
+
+function assertCustomerManageMutationAllowed(license) {
   if (!license.active) {
     throw new HttpError(403, "This license is disabled.");
   }
-
-  return license;
+  if (isLicenseExpired(license.expires_at)) {
+    throw new HttpError(403, "This license has expired.", {
+      expiresAt: license.expires_at
+    });
+  }
 }
 
 function assertLicenseForActivation(license) {
@@ -333,6 +341,31 @@ function getOverview() {
     `).get().count,
     openSessions: db.prepare("SELECT COUNT(*) AS count FROM service_sessions WHERE closed_at IS NULL").get().count,
     totalAuditEvents: db.prepare("SELECT COUNT(*) AS count FROM audit_logs").get().count
+  };
+}
+
+function buildManageLicenseState(licenseId) {
+  reconcileSessions();
+  const license = getLicenseById(licenseId);
+  if (!license) {
+    throw new HttpError(404, "License not found.");
+  }
+
+  const nextResetAt = license.next_reset_at || null;
+  const nextResetTimestamp = nextResetAt ? Date.parse(nextResetAt) : 0;
+  const cooldownRemainingMs = nextResetTimestamp && nextResetTimestamp > Date.now()
+    ? nextResetTimestamp - Date.now()
+    : 0;
+
+  return {
+    ok: true,
+    license: serializeLicense(license),
+    devices: listLicenseDevices(license.id).filter((device) => device.active),
+    instances: listLicenseInstances(license.id),
+    downloads: listDownloadJarsForLicense(license),
+    webhook: getLicenseWebhookConfig(license.id),
+    webhookEvents: getWebhookEventDefinitions(),
+    cooldownRemainingMs
   };
 }
 
@@ -549,6 +582,58 @@ function extendLicenseTerm(licenseId) {
   return serializeLicense(getLicenseById(licenseId));
 }
 
+function addLicenseTime(licenseId, input = {}) {
+  const db = getDatabase();
+  const existing = getLicenseById(licenseId);
+  if (!existing) {
+    throw new HttpError(404, "License not found.");
+  }
+
+  const licenseType = normalizeLicenseType(existing.license_type);
+  if (licenseType === "lifetime") {
+    throw new HttpError(400, "Lifetime licenses do not need time extensions.");
+  }
+
+  const months = clampInteger(input.months, 0, 120, 0);
+  const years = clampInteger(input.years, 0, 20, 0);
+  if (months <= 0 && years <= 0) {
+    throw new HttpError(400, "Pick a valid amount of time to add.");
+  }
+
+  const baseExpiry = existing.expires_at && !isLicenseExpired(existing.expires_at)
+    ? existing.expires_at
+    : nowIso();
+  let expiresAt = baseExpiry;
+
+  if (months > 0) {
+    expiresAt = endOfLocalDay(addCalendarMonths(expiresAt, months));
+  }
+  if (years > 0) {
+    expiresAt = endOfLocalDay(addCalendarYears(expiresAt, years));
+  }
+
+  db.prepare(`
+    UPDATE licenses
+       SET expires_at = ?,
+           updated_at = ?
+     WHERE id = ?
+  `).run(expiresAt, nowIso(), licenseId);
+
+  logAudit({
+    licenseId,
+    actor: "admin",
+    action: "license_time_added",
+    details: {
+      months,
+      years,
+      previousExpiresAt: existing.expires_at || null,
+      newExpiresAt: expiresAt
+    }
+  });
+
+  return serializeLicense(getLicenseById(licenseId));
+}
+
 function deleteLicense(licenseId) {
   const db = getDatabase();
   const existing = getLicenseById(licenseId);
@@ -581,12 +666,52 @@ function deleteLicense(licenseId) {
   };
 }
 
+function buildActivationFailure(status, message, action, details = {}) {
+  const error = new HttpError(status, message, details);
+  error.auditAction = action;
+  error.auditDetails = details;
+  return error;
+}
+
 function activateLicense(payload = {}) {
   reconcileSessions();
 
   const db = getDatabase();
   const license = getLicenseByKey(payload.licenseKey);
-  assertLicenseForActivation(license);
+  if (!license) {
+    logAudit({
+      actor: "plugin",
+      action: "auth_denied_unknown_license",
+      details: {
+        licenseKey: normalizeText(payload.licenseKey).toUpperCase()
+      }
+    });
+    throw new HttpError(404, "Unknown license key.");
+  }
+  if (!license.active) {
+    logAudit({
+      licenseId: license.id,
+      actor: "plugin",
+      action: "auth_denied_license_disabled",
+      details: {
+        licenseKey: license.license_key
+      }
+    });
+    throw new HttpError(403, "This license is disabled.");
+  }
+  if (isLicenseExpired(license.expires_at)) {
+    logAudit({
+      licenseId: license.id,
+      actor: "plugin",
+      action: "auth_denied_license_expired",
+      details: {
+        expiresAt: license.expires_at
+      }
+    });
+    throw new HttpError(403, "This license has expired.", {
+      expiresAt: license.expires_at
+    });
+  }
 
   const username = normalizeIdentifier(payload.username);
   if (!username) {
@@ -595,6 +720,15 @@ function activateLicense(payload = {}) {
 
   if (license.customer_username) {
     if (normalizeIdentifier(license.customer_username) !== username) {
+      logAudit({
+        licenseId: license.id,
+        actor: "plugin",
+        action: "auth_denied_username_mismatch",
+        details: {
+          expectedUsername: license.customer_username,
+          providedUsername: payload.username
+        }
+      });
       throw new HttpError(403, "The provided username does not match this license.");
     }
   } else {
@@ -631,6 +765,7 @@ function activateLicense(payload = {}) {
   });
 
   const transaction = db.transaction(() => {
+    let createdDevice = null;
     let device = db.prepare(`
       SELECT *
         FROM license_devices
@@ -646,9 +781,11 @@ function activateLicense(payload = {}) {
     `).get(license.id).count;
 
     if (!device && activeDeviceCount >= license.max_hwids) {
-      throw new HttpError(403, "This license has reached its HWID limit.", {
+      throw buildActivationFailure(403, "This license has reached its HWID limit.", "hwid_limit_denied", {
         maxHwids: license.max_hwids,
-        activeDeviceCount
+        activeDeviceCount,
+        deviceName,
+        hwidHash: fingerprint.hash
       });
     }
 
@@ -677,6 +814,7 @@ function activateLicense(payload = {}) {
         ) VALUES (?, ?, ?, ?, ?, ?, ?, 1)
       `).run(license.id, fingerprint.hash, deviceName, deviceFingerprintJson, timestamp, timestamp, username);
       device = db.prepare("SELECT * FROM license_devices WHERE id = ?").get(insert.lastInsertRowid);
+      createdDevice = device;
     }
 
     let instance = db.prepare(`
@@ -697,9 +835,11 @@ function activateLicense(payload = {}) {
 
     const instanceClaimsSlot = Boolean(instance?.active) && Boolean(instance?.slot_claimed);
     if ((!instance || !instanceClaimsSlot) && activeInstanceCount >= license.max_instances) {
-      throw new HttpError(403, "This license has reached its instance limit.", {
+      throw buildActivationFailure(403, "This license has reached its instance limit.", "instance_limit_denied", {
         maxInstances: license.max_instances,
-        activeInstanceCount
+        activeInstanceCount,
+        instanceName,
+        instanceHash: instanceFingerprint.hash
       });
     }
 
@@ -768,26 +908,58 @@ function activateLicense(payload = {}) {
 
     db.prepare("UPDATE licenses SET updated_at = ? WHERE id = ?").run(timestamp, license.id);
 
-    logAudit({
-      licenseId: license.id,
-      deviceId: device.id,
-      actor: "plugin",
-      action: "license_activated",
-      details: {
-        username,
-        deviceName,
-        instanceName,
-        heartbeatIntervalSeconds,
-        serverName: serverInfo.serverName,
-        pluginVersion: serverInfo.pluginVersion
-      }
-    });
-
     const refreshedLicense = getLicenseById(license.id);
-    return { session, device, instance, refreshedLicense };
+    return { session, device, instance, refreshedLicense, createdDevice };
   });
 
-  const result = transaction();
+  let result;
+  try {
+    result = transaction();
+  } catch (error) {
+    if (error?.auditAction) {
+      logAudit({
+        licenseId: license.id,
+        actor: "plugin",
+        action: error.auditAction,
+        details: {
+          ...error.auditDetails,
+          serverName: serverInfo.serverName,
+          pluginVersion: serverInfo.pluginVersion
+        }
+      });
+    }
+    throw error;
+  }
+
+  logAudit({
+    licenseId: license.id,
+    deviceId: result.device.id,
+    actor: "plugin",
+    action: "license_activated",
+    details: {
+      username,
+      deviceName,
+      instanceName,
+      heartbeatIntervalSeconds,
+      serverName: serverInfo.serverName,
+      pluginVersion: serverInfo.pluginVersion
+    }
+  });
+
+  if (result.createdDevice) {
+    logAudit({
+      licenseId: license.id,
+      deviceId: result.createdDevice.id,
+      actor: "plugin",
+      action: "device_registered",
+      details: {
+        deviceName: result.createdDevice.device_name,
+        hwidHash: result.createdDevice.hwid_hash,
+        username
+      }
+    });
+  }
+
   return {
     ok: true,
     message: "License authenticated.",
@@ -825,9 +997,47 @@ function heartbeatLicenseSession(payload = {}) {
   }
 
   const license = getLicenseById(session.license_id);
-  if (!license || !license.active || isLicenseExpired(license.expires_at)) {
-    closeSession(sessionToken, isLicenseExpired(license?.expires_at) ? "license_expired" : "license_disabled");
-    throw new HttpError(403, !license ? "License no longer exists." : (isLicenseExpired(license.expires_at) ? "This license has expired." : "This license is disabled."));
+  if (!license) {
+    closeSession(sessionToken, "license_missing");
+    logAudit({
+      licenseId: session.license_id,
+      deviceId: session.device_id,
+      actor: "plugin",
+      action: "heartbeat_denied_license_missing",
+      details: {
+        sessionToken
+      }
+    });
+    throw new HttpError(403, "License no longer exists.");
+  }
+  if (!license.active) {
+    closeSession(sessionToken, "license_disabled");
+    logAudit({
+      licenseId: session.license_id,
+      deviceId: session.device_id,
+      actor: "plugin",
+      action: "heartbeat_denied_license_disabled",
+      details: {
+        sessionToken
+      }
+    });
+    throw new HttpError(403, "This license is disabled.");
+  }
+  if (isLicenseExpired(license.expires_at)) {
+    closeSession(sessionToken, "license_expired");
+    logAudit({
+      licenseId: session.license_id,
+      deviceId: session.device_id,
+      actor: "plugin",
+      action: "heartbeat_denied_license_expired",
+      details: {
+        sessionToken,
+        expiresAt: license.expires_at
+      }
+    });
+    throw new HttpError(403, "This license has expired.", {
+      expiresAt: license.expires_at
+    });
   }
 
   const db = getDatabase();
@@ -881,27 +1091,55 @@ function shutdownLicenseSession(payload = {}) {
   return { ok: true, message: "Shutdown stored." };
 }
 
-function lookupResetState({ licenseKey, username, ipAddress } = {}) {
+function lookupManageState({ licenseKey, username, ipAddress } = {}) {
   if (ipAddress !== undefined && ipAddress !== null) {
     claimResetLookupAttempt(ipAddress);
   }
-  reconcileSessions();
+  const license = getSelfServiceManageLicense(licenseKey, username);
+  return buildManageLicenseState(license.id);
+}
 
-  const license = getSelfServiceResetLicense(licenseKey, username);
-
-  const devices = listLicenseDevices(license.id).filter((device) => device.active);
-  const nextResetAt = license.next_reset_at || null;
-  const nextResetTimestamp = nextResetAt ? Date.parse(nextResetAt) : 0;
-  const cooldownRemainingMs = nextResetTimestamp && nextResetTimestamp > Date.now()
-    ? nextResetTimestamp - Date.now()
-    : 0;
-
+function lookupResetState({ licenseKey, username, ipAddress } = {}) {
+  const state = lookupManageState({ licenseKey, username, ipAddress });
   return {
     ok: true,
-    license: serializeLicense(getLicenseById(license.id)),
-    devices,
-    cooldownRemainingMs
+    license: state.license,
+    devices: state.devices,
+    cooldownRemainingMs: state.cooldownRemainingMs
   };
+}
+
+function updateSelfServiceWebhook(licenseKey, username, input = {}) {
+  const license = getSelfServiceManageLicense(licenseKey, username);
+  const webhookUrlInput = input.webhookUrl ?? input.url ?? "";
+
+  let webhookUrl = "";
+  try {
+    webhookUrl = normalizeDiscordWebhookUrl(webhookUrlInput);
+  } catch (error) {
+    throw new HttpError(400, error.message);
+  }
+
+  const webhookEvents = normalizeWebhookEventSettings(input.events);
+  getDatabase().prepare(`
+    UPDATE licenses
+       SET webhook_url = ?,
+           webhook_events_json = ?,
+           updated_at = ?
+     WHERE id = ?
+  `).run(webhookUrl, JSON.stringify(webhookEvents), nowIso(), license.id);
+
+  logAudit({
+    licenseId: license.id,
+    actor: "self_service",
+    action: "license_webhook_updated",
+    details: {
+      configured: Boolean(webhookUrl),
+      events: webhookEvents
+    }
+  });
+
+  return buildManageLicenseState(license.id);
 }
 
 function resetLicenseDevices(license, deviceIds = [], options = {}) {
@@ -999,11 +1237,7 @@ function resetLicenseDevices(license, deviceIds = [], options = {}) {
     });
   }
 
-  return lookupResetState({
-    licenseKey: license.license_key,
-    username: license.customer_username,
-    ipAddress: null
-  });
+  return buildManageLicenseState(license.id);
 }
 
 function resetLicenseInstances(license, instanceIds = [], options = {}) {
@@ -1078,7 +1312,8 @@ function resetLicenseInstances(license, instanceIds = [], options = {}) {
 }
 
 function resetLicenseDevicesByKey(licenseKey, username, deviceIds = []) {
-  const license = getSelfServiceResetLicense(licenseKey, username);
+  const license = getSelfServiceManageLicense(licenseKey, username);
+  assertCustomerManageMutationAllowed(license);
   return resetLicenseDevices(license, deviceIds, {
     actor: "self_service",
     closeReason: "user_reset",
@@ -1128,6 +1363,7 @@ function adminResetInstances(licenseId, instanceIds = []) {
 }
 
 module.exports = {
+  addLicenseTime,
   activateLicense,
   adminResetDevices,
   adminResetInstances,
@@ -1140,8 +1376,10 @@ module.exports = {
   listLicenseInstances,
   listLicenses,
   listRecentSessions,
+  lookupManageState,
   lookupResetState,
   resetLicenseDevicesByKey,
   shutdownLicenseSession,
+  updateSelfServiceWebhook,
   updateLicense
 };

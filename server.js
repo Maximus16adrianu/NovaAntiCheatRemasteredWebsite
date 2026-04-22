@@ -1,6 +1,7 @@
 const path = require("path");
 const express = require("express");
 const { config, ensureDirectories } = require("./server/config");
+const { processExpiringLicenseNotifications } = require("./server/activity");
 const { initializeDatabase, closeDatabase } = require("./server/database");
 const { requestIdMiddleware, apiNotFoundHandler, apiErrorHandler } = require("./server/middleware");
 const { createApiRouter } = require("./server/routes/api");
@@ -12,6 +13,9 @@ ensureDirectories();
 initializeDatabase();
 reconcileSessions();
 initializePluginSecureTransport();
+processExpiringLicenseNotifications().catch((error) => {
+  console.error("[NovaAC Website] Initial expiry notification scan failed:", error);
+});
 
 const app = express();
 app.disable("x-powered-by");
@@ -58,9 +62,17 @@ const reconcileTimer = setInterval(() => {
 }, 5_000);
 reconcileTimer.unref();
 
+const expiryNotificationTimer = setInterval(() => {
+  processExpiringLicenseNotifications().catch((error) => {
+    console.error("[NovaAC Website] Expiry notification scan failed:", error);
+  });
+}, 10 * 60 * 1000);
+expiryNotificationTimer.unref();
+
 function shutdown(signal) {
   console.log(`[NovaAC Website] ${signal} received, shutting down...`);
   clearInterval(reconcileTimer);
+  clearInterval(expiryNotificationTimer);
 
   server.close(() => {
     closeDatabase();

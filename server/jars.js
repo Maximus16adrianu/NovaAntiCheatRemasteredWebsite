@@ -12,6 +12,11 @@ const JAR_ACCESS_SCOPES = Object.freeze({
   PUBLIC: "public",
   BUYERS: "buyers"
 });
+const JAR_RELEASE_CHANNELS = Object.freeze({
+  STABLE: "stable",
+  BETA: "beta",
+  LEGACY: "legacy"
+});
 
 function normalizeJarName(value, fallback = "Nova Build") {
   const text = normalizeText(value, fallback).slice(0, 96);
@@ -22,9 +27,33 @@ function normalizeJarNotes(value) {
   return normalizeText(value).slice(0, 600);
 }
 
+function normalizeJarChangelog(value) {
+  return normalizeText(value).slice(0, 4_000);
+}
+
+function normalizeSupportedVersions(value) {
+  return normalizeText(value).slice(0, 240);
+}
+
 function normalizeJarAccessScope(value, fallback = JAR_ACCESS_SCOPES.BUYERS) {
   const normalized = normalizeText(value, fallback).toLowerCase();
   return normalized === JAR_ACCESS_SCOPES.PUBLIC ? JAR_ACCESS_SCOPES.PUBLIC : JAR_ACCESS_SCOPES.BUYERS;
+}
+
+function normalizeJarReleaseChannel(value, fallback = JAR_RELEASE_CHANNELS.STABLE) {
+  const normalized = normalizeText(value, fallback).toLowerCase();
+  if (normalized === JAR_RELEASE_CHANNELS.BETA || normalized === JAR_RELEASE_CHANNELS.LEGACY) {
+    return normalized;
+  }
+  return JAR_RELEASE_CHANNELS.STABLE;
+}
+
+function normalizeBooleanInput(value) {
+  if (typeof value === "boolean") {
+    return value;
+  }
+  const normalized = normalizeText(value).toLowerCase();
+  return normalized === "1" || normalized === "true" || normalized === "yes" || normalized === "on";
 }
 
 function normalizeOriginalJarName(value) {
@@ -68,20 +97,36 @@ function sanitizeDownloadFileName(displayName, originalName) {
   return sanitized.toLowerCase().endsWith(".jar") ? sanitized : `${sanitized}.jar`;
 }
 
+function getReleaseChannelLabel(releaseChannel) {
+  if (releaseChannel === JAR_RELEASE_CHANNELS.BETA) {
+    return "Beta";
+  }
+  if (releaseChannel === JAR_RELEASE_CHANNELS.LEGACY) {
+    return "Legacy";
+  }
+  return "Stable";
+}
+
 function serializeJar(row) {
   if (!row) {
     return null;
   }
 
   const accessScope = normalizeJarAccessScope(row.access_scope);
+  const releaseChannel = normalizeJarReleaseChannel(row.release_channel);
 
   return {
     id: row.id,
     displayName: row.display_name,
     notes: row.notes || "",
+    changelog: row.changelog || "",
+    supportedVersions: row.supported_versions || "",
+    releaseChannel,
+    releaseChannelLabel: getReleaseChannelLabel(releaseChannel),
     accessScope,
     accessLabel: accessScope === JAR_ACCESS_SCOPES.PUBLIC ? "Everybody" : "Buyers only",
     requiresBuyerLicense: accessScope === JAR_ACCESS_SCOPES.BUYERS,
+    recommended: Boolean(row.recommended),
     storedName: row.stored_name,
     originalName: row.original_name || "",
     fileSize: row.file_size || 0,
@@ -103,9 +148,14 @@ function serializePublicJar(row) {
     id: jar.id,
     displayName: jar.displayName,
     notes: jar.notes,
+    changelog: jar.changelog,
+    supportedVersions: jar.supportedVersions,
+    releaseChannel: jar.releaseChannel,
+    releaseChannelLabel: jar.releaseChannelLabel,
     accessScope: jar.accessScope,
     accessLabel: jar.accessLabel,
     requiresBuyerLicense: jar.requiresBuyerLicense,
+    recommended: jar.recommended,
     originalName: jar.originalName,
     fileSize: jar.fileSize,
     updatedAt: jar.updatedAt,
@@ -163,7 +213,18 @@ function resequenceJarOrders(database) {
   });
 }
 
-function uploadJar({ displayName, notes, accessScope, originalName, mimeType, buffer }) {
+function uploadJar({
+  displayName,
+  notes,
+  changelog,
+  supportedVersions,
+  releaseChannel,
+  recommended,
+  accessScope,
+  originalName,
+  mimeType,
+  buffer
+}) {
   if (!Buffer.isBuffer(buffer) || buffer.length === 0) {
     throw new HttpError(400, "Upload body is empty.");
   }
@@ -174,6 +235,10 @@ function uploadJar({ displayName, notes, accessScope, originalName, mimeType, bu
   const normalizedOriginalName = normalizeOriginalJarName(originalName);
   const normalizedDisplayName = normalizeJarName(displayName, path.parse(normalizedOriginalName).name);
   const normalizedNotes = normalizeJarNotes(notes);
+  const normalizedChangelog = normalizeJarChangelog(changelog);
+  const normalizedSupportedVersions = normalizeSupportedVersions(supportedVersions);
+  const normalizedReleaseChannel = normalizeJarReleaseChannel(releaseChannel);
+  const normalizedRecommended = normalizeBooleanInput(recommended) ? 1 : 0;
   const normalizedAccessScope = normalizeJarAccessScope(accessScope);
   const storedName = buildJarStorageName(normalizedOriginalName);
   const filePath = getJarFilePath(storedName);
@@ -183,31 +248,50 @@ function uploadJar({ displayName, notes, accessScope, originalName, mimeType, bu
   fs.writeFileSync(filePath, buffer);
 
   try {
-    const insert = database.prepare(`
-      INSERT INTO download_jars (
-        display_name,
-        notes,
-        access_scope,
-        stored_name,
-        original_name,
-        file_size,
-        mime_type,
-        sort_order,
-        created_at,
-        updated_at
-      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-    `).run(
-      normalizedDisplayName,
-      normalizedNotes,
-      normalizedAccessScope,
-      storedName,
-      normalizedOriginalName,
-      buffer.length,
-      normalizeText(mimeType, "application/java-archive"),
-      getNextJarSortOrder(),
-      timestamp,
-      timestamp
-    );
+    const insert = database.transaction(() => {
+      if (normalizedRecommended) {
+        database.prepare(`
+          UPDATE download_jars
+             SET recommended = 0,
+                 updated_at = ?
+           WHERE recommended = 1
+        `).run(timestamp);
+      }
+
+      return database.prepare(`
+        INSERT INTO download_jars (
+          display_name,
+          notes,
+          changelog,
+          supported_versions,
+          release_channel,
+          access_scope,
+          recommended,
+          stored_name,
+          original_name,
+          file_size,
+          mime_type,
+          sort_order,
+          created_at,
+          updated_at
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+      `).run(
+        normalizedDisplayName,
+        normalizedNotes,
+        normalizedChangelog,
+        normalizedSupportedVersions,
+        normalizedReleaseChannel,
+        normalizedAccessScope,
+        normalizedRecommended,
+        storedName,
+        normalizedOriginalName,
+        buffer.length,
+        normalizeText(mimeType, "application/java-archive"),
+        getNextJarSortOrder(),
+        timestamp,
+        timestamp
+      );
+    })();
 
     return serializeJar(getJarById(insert.lastInsertRowid));
   } catch (error) {
@@ -226,16 +310,48 @@ function updateJar(jarId, updates = {}) {
   const timestamp = nowIso();
   const nextDisplayName = normalizeJarName(updates.displayName, existing.display_name);
   const nextNotes = normalizeJarNotes(updates.notes ?? existing.notes);
+  const nextChangelog = normalizeJarChangelog(updates.changelog ?? existing.changelog);
+  const nextSupportedVersions = normalizeSupportedVersions(updates.supportedVersions ?? existing.supported_versions);
+  const nextReleaseChannel = normalizeJarReleaseChannel(updates.releaseChannel ?? existing.release_channel, existing.release_channel);
   const nextAccessScope = normalizeJarAccessScope(updates.accessScope, existing.access_scope);
+  const nextRecommended = updates.recommended === undefined
+    ? (existing.recommended ? 1 : 0)
+    : (normalizeBooleanInput(updates.recommended) ? 1 : 0);
 
-  database.prepare(`
-    UPDATE download_jars
-       SET display_name = ?,
-           notes = ?,
-           access_scope = ?,
-           updated_at = ?
-     WHERE id = ?
-  `).run(nextDisplayName, nextNotes, nextAccessScope, timestamp, existing.id);
+  database.transaction(() => {
+    if (nextRecommended) {
+      database.prepare(`
+        UPDATE download_jars
+           SET recommended = 0,
+               updated_at = ?
+         WHERE id != ?
+           AND recommended = 1
+      `).run(timestamp, existing.id);
+    }
+
+    database.prepare(`
+      UPDATE download_jars
+         SET display_name = ?,
+             notes = ?,
+             changelog = ?,
+             supported_versions = ?,
+             release_channel = ?,
+             access_scope = ?,
+             recommended = ?,
+             updated_at = ?
+       WHERE id = ?
+    `).run(
+      nextDisplayName,
+      nextNotes,
+      nextChangelog,
+      nextSupportedVersions,
+      nextReleaseChannel,
+      nextAccessScope,
+      nextRecommended,
+      timestamp,
+      existing.id
+    );
+  })();
 
   return serializeJar(getJarById(existing.id));
 }
@@ -331,6 +447,15 @@ function requireBuyerJarAccess(licenseKey, username) {
   if (isLicenseExpired(license.expires_at)) {
     throw new HttpError(403, "This license has expired.");
   }
+
+  return license;
+}
+
+function listDownloadJarsForLicense(license) {
+  const hasBuyerAccess = Boolean(license?.active) && !isLicenseExpired(license?.expires_at);
+  return listJarRows()
+    .map(serializePublicJar)
+    .filter((jar) => !jar.requiresBuyerLicense || hasBuyerAccess);
 }
 
 function claimJarDownload(jarId, ipAddress, access = {}) {
@@ -406,6 +531,7 @@ module.exports = {
   deleteJar,
   getDownloadCooldown,
   listAdminJars,
+  listDownloadJarsForLicense,
   listPublicDownloadJars,
   reorderJars,
   updateJar,

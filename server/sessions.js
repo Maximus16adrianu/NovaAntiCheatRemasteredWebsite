@@ -168,6 +168,32 @@ function closeSession(sessionToken, reason = "shutdown", options = {}) {
   return result.changes > 0;
 }
 
+function closeAllSessions(reason = "shutdown", options = {}) {
+  const db = getDatabase();
+  const closedAt = options.closedAt || nowIso();
+  const staleClosed = options.stale ? 1 : 0;
+  const instanceIds = db.prepare(`
+    SELECT DISTINCT instance_id
+      FROM service_sessions
+     WHERE closed_at IS NULL
+       AND instance_id IS NOT NULL
+  `).all().map((row) => row.instance_id);
+
+  const result = db.prepare(`
+    UPDATE service_sessions
+       SET closed_at = ?,
+           close_reason = ?,
+           stale_closed = ?
+     WHERE closed_at IS NULL
+  `).run(closedAt, reason, staleClosed);
+
+  for (const instanceId of instanceIds) {
+    syncInstanceSlotClaim(instanceId);
+  }
+
+  return result.changes;
+}
+
 function getSessionByToken(sessionToken) {
   return getDatabase().prepare("SELECT * FROM service_sessions WHERE session_token = ?").get(sessionToken);
 }
@@ -199,6 +225,7 @@ function reconcileSessions() {
 }
 
 module.exports = {
+  closeAllSessions,
   closeOpenSessionsForInstance,
   closeSession,
   createSession,

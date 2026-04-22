@@ -9,10 +9,21 @@ const state = {
   apiKey: localStorage.getItem(ADMIN_KEY_STORAGE) || "",
   licenses: [],
   jars: [],
+  auditLogs: [],
+  auditFilters: {
+    actors: [],
+    actions: []
+  },
+  lockdown: {
+    enabled: false,
+    reason: "",
+    since: null
+  },
   selectedLicenseId: null,
   selectedDevices: new Set(),
   selectedInstances: new Set(),
   draggingJarId: null,
+  openJarId: null,
   formLicense: null
 };
 
@@ -30,6 +41,13 @@ const elements = {
   statActiveDevices: document.getElementById("statActiveDevices"),
   statActiveInstances: document.getElementById("statActiveInstances"),
   statOpenSessions: document.getElementById("statOpenSessions"),
+  lockdownStateBadge: document.getElementById("lockdownStateBadge"),
+  lockdownReasonField: document.getElementById("lockdownReasonField"),
+  lockdownStatusText: document.getElementById("lockdownStatusText"),
+  lockdownSinceText: document.getElementById("lockdownSinceText"),
+  lockdownReasonText: document.getElementById("lockdownReasonText"),
+  toggleLockdownButton: document.getElementById("toggleLockdownButton"),
+  refreshLockdownButton: document.getElementById("refreshLockdownButton"),
   refreshDataButton: document.getElementById("refreshDataButton"),
   reconcileSessionsButton: document.getElementById("reconcileSessionsButton"),
   backupButton: document.getElementById("backupButton"),
@@ -65,7 +83,11 @@ const elements = {
   jarFileField: document.getElementById("jarFileField"),
   jarNameField: document.getElementById("jarNameField"),
   jarNoteField: document.getElementById("jarNoteField"),
+  jarVersionsField: document.getElementById("jarVersionsField"),
+  jarChannelField: document.getElementById("jarChannelField"),
+  jarChangelogField: document.getElementById("jarChangelogField"),
   jarAccessField: document.getElementById("jarAccessField"),
+  jarRecommendedField: document.getElementById("jarRecommendedField"),
   uploadJarButton: document.getElementById("uploadJarButton"),
   jarList: document.getElementById("jarList"),
   jarCountChip: document.getElementById("jarCountChip"),
@@ -81,6 +103,12 @@ const elements = {
   resetInstancesButton: document.getElementById("resetInstancesButton"),
   refreshSessionsButton: document.getElementById("refreshSessionsButton"),
   sessionsTableBody: document.getElementById("sessionsTableBody"),
+  refreshAuditLogsButton: document.getElementById("refreshAuditLogsButton"),
+  auditSearchField: document.getElementById("auditSearchField"),
+  auditActorField: document.getElementById("auditActorField"),
+  auditActionField: document.getElementById("auditActionField"),
+  auditLimitField: document.getElementById("auditLimitField"),
+  auditLogsTableBody: document.getElementById("auditLogsTableBody"),
   downloadKeyModal: document.getElementById("downloadKeyModal"),
   downloadKeyForm: document.getElementById("downloadKeyForm"),
   downloadKeyInput: document.getElementById("downloadKeyInput"),
@@ -177,6 +205,11 @@ function badge(label, tone = "") {
   return `<span class="${className}">${esc(label)}</span>`;
 }
 
+function jarMetaBadge(label, tone = "") {
+  const className = tone ? `jar-meta-badge ${tone}` : "jar-meta-badge";
+  return `<span class="${className}">${esc(label)}</span>`;
+}
+
 function buildStatusBadge(license) {
   if (!license.active) {
     return badge("Disabled", "danger");
@@ -205,6 +238,27 @@ function canExtendLicense(license) {
 
 function getExtendLabel(license) {
   return license?.licenseType === "yearly" ? "+1 Year" : "+1 Month";
+}
+
+function buildInstanceStateBadge(instance) {
+  if (!instance.active) {
+    return badge("Reset", "warning");
+  }
+  if (instance.online) {
+    return badge("Online", "success");
+  }
+  if (instance.slotClaimed) {
+    return badge("Offline slot", "warning");
+  }
+  return badge("Stored", "");
+}
+
+function formatAuditDetails(details) {
+  try {
+    return JSON.stringify(details || {}, null, 2);
+  } catch (_error) {
+    return "{}";
+  }
 }
 
 function addMonths(dateInput, months) {
@@ -360,9 +414,12 @@ function renderLicenses() {
   const fragment = document.createDocumentFragment();
   for (const license of licenses) {
     const row = document.createElement("tr");
-    const extendAction = canExtendLicense(license)
-      ? `<button class="mini-button" data-action="extend" data-license-id="${license.id}">${esc(getExtendLabel(license))}</button>`
-      : "";
+    const addTimeActions = license.licenseType === "lifetime"
+      ? ""
+      : `
+        <button class="mini-button" data-action="add-month" data-license-id="${license.id}">+1 Month</button>
+        <button class="mini-button" data-action="add-year" data-license-id="${license.id}">+1 Year</button>
+      `;
 
     row.innerHTML = `
       <td>
@@ -386,7 +443,7 @@ function renderLicenses() {
       <td>
         <div class="inline-actions">
           <button class="mini-button primary" data-action="open" data-license-id="${license.id}">Open</button>
-          ${extendAction}
+          ${addTimeActions}
           <button class="mini-button danger" data-action="delete" data-license-id="${license.id}">Delete</button>
         </div>
       </td>
@@ -469,7 +526,7 @@ function renderInstances(instances) {
         <strong>${esc(instance.instanceName || "Unknown instance")}</strong>
         <small>${esc(instance.instanceUuid || instance.instanceHash || "")}</small>
       </td>
-      <td>${instance.online ? badge("Online", "success") : badge(instance.active ? "Stored" : "Reset", instance.active ? "" : "warning")}</td>
+      <td>${buildInstanceStateBadge(instance)}</td>
       <td>${esc(String(instance.openSessionCount || 0))}</td>
       <td>${esc(instance.deviceName || "Unknown device")}</td>
       <td>${esc(instance.lastServerName || "Unknown server")}</td>
@@ -543,6 +600,9 @@ function renderJars() {
 
   state.draggingJarId = null;
   const jars = Array.isArray(state.jars) ? state.jars : [];
+  if (state.openJarId != null && !jars.some((entry) => entry.id === state.openJarId)) {
+    state.openJarId = null;
+  }
   elements.jarCountChip.textContent = `${jars.length} jar${jars.length === 1 ? "" : "s"}`;
   elements.jarList.innerHTML = "";
 
@@ -553,43 +613,95 @@ function renderJars() {
 
   const fragment = document.createDocumentFragment();
   jars.forEach((jar, index) => {
+    const displayLabel = jar.displayName || jar.downloadName || jar.originalName || "Jar";
+    const isOpen = state.openJarId === jar.id;
     const item = document.createElement("article");
-    item.className = "jar-item";
-    item.draggable = true;
+    item.className = `jar-item${isOpen ? " is-open" : ""}`;
     item.dataset.jarId = String(jar.id);
     item.innerHTML = `
-      <div class="jar-item-head">
-        <div>
-          <strong>${esc(jar.originalName || jar.downloadName || jar.displayName || "Jar")}</strong>
-          <small>${esc(formatBytes(jar.fileSize || 0))} | Updated ${esc(formatDate(jar.updatedAt))}</small>
+      <div class="jar-item-shell" draggable="true" data-jar-id="${jar.id}">
+        <div class="jar-drag-handle" aria-hidden="true">
+          <span></span>
+          <span></span>
+          <span></span>
         </div>
-        <div class="jar-item-badges">
-          <span class="jar-access-badge ${jar.accessScope === "public" ? "public" : "buyers"}">${esc(jar.accessLabel || "Buyers only")}</span>
-          <span class="drag-badge">Drag to reorder</span>
+        <div class="jar-item-main">
+          <strong class="jar-item-title">${esc(displayLabel)}</strong>
+          <div class="jar-meta-row">
+            ${jar.recommended ? jarMetaBadge("Recommended", "recommended") : ""}
+            ${jarMetaBadge(jar.releaseChannelLabel || "Stable")}
+            ${jar.supportedVersions ? jarMetaBadge(jar.supportedVersions) : ""}
+            ${jarMetaBadge(jar.accessLabel || "Buyers only")}
+          </div>
+        </div>
+        <div class="jar-item-tools">
           <span class="order-badge">#${index + 1}</span>
+          <button class="mini-button primary" type="button" data-action="toggle-jar" data-jar-id="${jar.id}">${isOpen ? "Close" : "Open"}</button>
         </div>
       </div>
-      <div class="jar-item-fields">
-        <label>
-          <span>Public name</span>
-          <input class="jar-name-input" type="text" value="${esc(jar.displayName || "")}" autocomplete="off" spellcheck="false">
-        </label>
-        <label>
-          <span>Public note</span>
-          <textarea class="jar-note-input" rows="3" spellcheck="false">${esc(jar.notes || "")}</textarea>
-        </label>
-        <label>
-          <span>Download access</span>
-          <select class="jar-access-input">
-            <option value="buyers"${jar.accessScope === "buyers" ? " selected" : ""}>Buyers only</option>
-            <option value="public"${jar.accessScope === "public" ? " selected" : ""}>Everybody</option>
-          </select>
-        </label>
-      </div>
-      <div class="actions-row">
-        <button class="mini-button primary" type="button" data-action="save-jar" data-jar-id="${jar.id}">Save</button>
-        <button class="mini-button danger" type="button" data-action="delete-jar" data-jar-id="${jar.id}">Delete jar</button>
-      </div>
+      ${isOpen ? `
+        <div class="jar-item-editor">
+          <div class="jar-item-summary">
+            <div class="jar-summary-card">
+              <span>Stored file</span>
+              <strong>${esc(jar.originalName || "Unknown jar")}</strong>
+            </div>
+            <div class="jar-summary-card">
+              <span>File size</span>
+              <strong>${esc(formatBytes(jar.fileSize || 0))}</strong>
+            </div>
+            <div class="jar-summary-card">
+              <span>Updated</span>
+              <strong>${esc(formatDate(jar.updatedAt))}</strong>
+            </div>
+            <div class="jar-summary-card">
+              <span>Access</span>
+              <strong>${esc(jar.accessLabel || "Buyers only")}</strong>
+            </div>
+          </div>
+          <div class="jar-item-fields">
+            <label>
+              <span>Public name</span>
+              <input class="jar-name-input" type="text" value="${esc(jar.displayName || "")}" autocomplete="off" spellcheck="false">
+            </label>
+            <label>
+              <span>Public note</span>
+              <textarea class="jar-note-input" rows="3" spellcheck="false">${esc(jar.notes || "")}</textarea>
+            </label>
+            <label>
+              <span>Supported versions</span>
+              <input class="jar-versions-input" type="text" value="${esc(jar.supportedVersions || "")}" autocomplete="off" spellcheck="false">
+            </label>
+            <label>
+              <span>Release channel</span>
+              <select class="jar-channel-input">
+                <option value="stable"${jar.releaseChannel === "stable" ? " selected" : ""}>Stable</option>
+                <option value="beta"${jar.releaseChannel === "beta" ? " selected" : ""}>Beta</option>
+                <option value="legacy"${jar.releaseChannel === "legacy" ? " selected" : ""}>Legacy</option>
+              </select>
+            </label>
+            <label>
+              <span>Changelog</span>
+              <textarea class="jar-changelog-input" rows="5" spellcheck="false">${esc(jar.changelog || "")}</textarea>
+            </label>
+            <label>
+              <span>Download access</span>
+              <select class="jar-access-input">
+                <option value="buyers"${jar.accessScope === "buyers" ? " selected" : ""}>Buyers only</option>
+                <option value="public"${jar.accessScope === "public" ? " selected" : ""}>Everybody</option>
+              </select>
+            </label>
+            <label class="checkbox-row">
+              <input class="jar-recommended-input" type="checkbox"${jar.recommended ? " checked" : ""}>
+              <span>Recommended build</span>
+            </label>
+          </div>
+          <div class="actions-row">
+            <button class="mini-button primary" type="button" data-action="save-jar" data-jar-id="${jar.id}">Save</button>
+            <button class="mini-button danger" type="button" data-action="delete-jar" data-jar-id="${jar.id}">Delete jar</button>
+          </div>
+        </div>
+      ` : ""}
     `;
     fragment.appendChild(item);
   });
@@ -619,10 +731,18 @@ async function uploadJarFromForm(event) {
 
   const displayName = elements.jarNameField.value.trim() || file.name.replace(/\.jar$/i, "");
   const notes = elements.jarNoteField.value.trim();
+  const supportedVersions = elements.jarVersionsField.value.trim();
+  const releaseChannel = elements.jarChannelField.value || "stable";
+  const changelog = elements.jarChangelogField.value.trim();
+  const recommended = elements.jarRecommendedField.checked ? "true" : "false";
   const accessScope = elements.jarAccessField.value || "buyers";
   const query = new URLSearchParams({
     displayName,
     notes,
+    supportedVersions,
+    releaseChannel,
+    changelog,
+    recommended,
     accessScope,
     originalName: file.name
   });
@@ -668,13 +788,18 @@ async function saveJar(jarId, sourceButton) {
 
   const displayName = item.querySelector(".jar-name-input")?.value.trim() || "";
   const notes = item.querySelector(".jar-note-input")?.value.trim() || "";
+  const supportedVersions = item.querySelector(".jar-versions-input")?.value.trim() || "";
+  const releaseChannel = item.querySelector(".jar-channel-input")?.value || "stable";
+  const changelog = item.querySelector(".jar-changelog-input")?.value.trim() || "";
   const accessScope = item.querySelector(".jar-access-input")?.value || "buyers";
+  const recommended = Boolean(item.querySelector(".jar-recommended-input")?.checked);
 
   setButtonBusy(sourceButton, true, "Saving...");
   try {
+    state.openJarId = jarId;
     await adminRequest(`/api/admin/jars/${jarId}`, {
       method: "PATCH",
-      body: { displayName, notes, accessScope }
+      body: { displayName, notes, supportedVersions, releaseChannel, changelog, accessScope, recommended }
     });
     await loadJars();
     showStatus(elements.adminStatus, "Jar details updated.", "success");
@@ -694,6 +819,9 @@ async function deleteJarById(jarId, sourceButton) {
 
   setButtonBusy(sourceButton, true, "Deleting...");
   try {
+    if (state.openJarId === jarId) {
+      state.openJarId = null;
+    }
     await adminRequest(`/api/admin/jars/${jarId}`, { method: "DELETE" });
     await loadJars();
     showStatus(elements.adminStatus, `${label} deleted.`, "success");
@@ -736,6 +864,12 @@ async function handleJarListClick(event) {
     return;
   }
 
+  if (button.dataset.action === "toggle-jar") {
+    state.openJarId = state.openJarId === jarId ? null : jarId;
+    renderJars();
+    return;
+  }
+
   if (button.dataset.action === "save-jar") {
     await saveJar(jarId, button);
     return;
@@ -747,7 +881,7 @@ async function handleJarListClick(event) {
 }
 
 function handleJarDragStart(event) {
-  const item = event.target.closest(".jar-item[data-jar-id]");
+  const item = event.target.closest(".jar-item-shell[data-jar-id]");
   if (!item) {
     return;
   }
@@ -758,7 +892,7 @@ function handleJarDragStart(event) {
     return;
   }
 
-  item.classList.add("dragging");
+  item.closest(".jar-item")?.classList.add("dragging");
   if (event.dataTransfer) {
     event.dataTransfer.effectAllowed = "move";
     event.dataTransfer.setData("text/plain", String(state.draggingJarId));
@@ -881,6 +1015,124 @@ async function loadSessions() {
   renderSessions(payload.sessions || []);
 }
 
+function renderLockdown() {
+  const lockdown = state.lockdown || {};
+  const enabled = Boolean(lockdown.enabled);
+
+  if (elements.lockdownStateBadge) {
+    elements.lockdownStateBadge.className = enabled ? "badge danger" : "badge success";
+    elements.lockdownStateBadge.textContent = enabled ? "Locked down" : "Normal";
+  }
+
+  if (elements.lockdownStatusText) {
+    elements.lockdownStatusText.textContent = enabled ? "Locked down" : "Normal";
+  }
+  if (elements.lockdownSinceText) {
+    elements.lockdownSinceText.textContent = lockdown.since ? formatDate(lockdown.since) : "-";
+  }
+  if (elements.lockdownReasonText) {
+    elements.lockdownReasonText.textContent = lockdown.reason || "-";
+  }
+  if (elements.lockdownReasonField && document.activeElement !== elements.lockdownReasonField) {
+    elements.lockdownReasonField.value = lockdown.reason || "";
+  }
+  if (elements.toggleLockdownButton) {
+    elements.toggleLockdownButton.textContent = enabled ? "Disable lockdown" : "Enable lockdown";
+  }
+}
+
+function renderAuditFilters() {
+  if (!elements.auditActorField || !elements.auditActionField) {
+    return;
+  }
+
+  const actorValue = elements.auditActorField.value;
+  const actionValue = elements.auditActionField.value;
+  elements.auditActorField.innerHTML = '<option value="">All actors</option>';
+  elements.auditActionField.innerHTML = '<option value="">All actions</option>';
+
+  for (const actor of state.auditFilters.actors || []) {
+    const option = document.createElement("option");
+    option.value = actor;
+    option.textContent = actor;
+    elements.auditActorField.appendChild(option);
+  }
+
+  for (const action of state.auditFilters.actions || []) {
+    const option = document.createElement("option");
+    option.value = action;
+    option.textContent = action;
+    elements.auditActionField.appendChild(option);
+  }
+
+  elements.auditActorField.value = actorValue;
+  elements.auditActionField.value = actionValue;
+}
+
+function renderAuditLogs() {
+  if (!elements.auditLogsTableBody) {
+    return;
+  }
+
+  elements.auditLogsTableBody.innerHTML = "";
+  if (!Array.isArray(state.auditLogs) || state.auditLogs.length === 0) {
+    elements.auditLogsTableBody.innerHTML = `<tr class="empty-row"><td colspan="5">No audit logs matched the current filters.</td></tr>`;
+    return;
+  }
+
+  const fragment = document.createDocumentFragment();
+  for (const entry of state.auditLogs) {
+    const row = document.createElement("tr");
+    row.innerHTML = `
+      <td>${esc(formatDate(entry.createdAt))}</td>
+      <td>${esc(entry.actor || "-")}</td>
+      <td>${esc(entry.action || "-")}</td>
+      <td>
+        <strong>${esc(entry.licenseKey || "System")}</strong>
+        <small>${esc(entry.customerUsername || entry.displayName || "")}</small>
+      </td>
+      <td><pre class="detail-code">${esc(formatAuditDetails(entry.details))}</pre></td>
+    `;
+    fragment.appendChild(row);
+  }
+
+  elements.auditLogsTableBody.appendChild(fragment);
+}
+
+async function loadLockdown() {
+  const payload = await adminRequest("/api/admin/lockdown");
+  state.lockdown = payload.lockdown || { enabled: false, reason: "", since: null };
+  renderLockdown();
+}
+
+async function loadAuditLogs() {
+  const query = new URLSearchParams();
+  const search = elements.auditSearchField?.value.trim() || "";
+  const actor = elements.auditActorField?.value || "";
+  const action = elements.auditActionField?.value || "";
+  const limit = elements.auditLimitField?.value || "150";
+
+  if (search) {
+    query.set("search", search);
+  }
+  if (actor) {
+    query.set("actor", actor);
+  }
+  if (action) {
+    query.set("action", action);
+  }
+  if (state.selectedLicenseId != null) {
+    query.set("licenseId", String(state.selectedLicenseId));
+  }
+  query.set("limit", limit);
+
+  const payload = await adminRequest(`/api/admin/audit-logs?${query.toString()}`);
+  state.auditLogs = payload.logs || [];
+  state.auditFilters = payload.filters || { actors: [], actions: [] };
+  renderAuditFilters();
+  renderAuditLogs();
+}
+
 async function loadLicenseDetail(licenseId) {
   state.selectedLicenseId = licenseId;
   elements.refreshDevicesButton.disabled = false;
@@ -932,7 +1184,7 @@ function syncEditedLicenseForm() {
 }
 
 async function refreshDashboard() {
-  await Promise.all([loadOverview(), loadLicenses(), loadSessions(), loadJars()]);
+  await Promise.all([loadOverview(), loadLicenses(), loadSessions(), loadJars(), loadLockdown(), loadAuditLogs()]);
   syncEditedLicenseForm();
 
   if (state.selectedLicenseId != null) {
@@ -941,6 +1193,7 @@ async function refreshDashboard() {
       await loadLicenseDetail(state.selectedLicenseId);
     } else {
       clearInspectorState();
+      await loadAuditLogs();
     }
   }
 }
@@ -977,7 +1230,11 @@ function logout() {
   state.apiKey = "";
   state.licenses = [];
   state.jars = [];
+  state.auditLogs = [];
+  state.auditFilters = { actors: [], actions: [] };
+  state.lockdown = { enabled: false, reason: "", since: null };
   clearJarDragState();
+  state.openJarId = null;
   localStorage.removeItem(ADMIN_KEY_STORAGE);
   elements.apiKey.value = "";
   closeDownloadKeyModal();
@@ -986,6 +1243,9 @@ function logout() {
   clearInspectorState();
   elements.licensesTableBody.innerHTML = "";
   elements.sessionsTableBody.innerHTML = "";
+  if (elements.auditLogsTableBody) {
+    elements.auditLogsTableBody.innerHTML = "";
+  }
   if (elements.jarList) {
     elements.jarList.innerHTML = `<div class="empty-jar-list">No jars uploaded yet.</div>`;
   }
@@ -993,6 +1253,7 @@ function logout() {
     elements.jarCountChip.textContent = "0 jars";
   }
   showLoggedOutUi();
+  renderLockdown();
   showStatus(elements.authStatus, "Logged out.", "info");
 }
 
@@ -1151,7 +1412,16 @@ async function openLicense(licenseId) {
 
   populateLicenseForm(license);
   await loadLicenseDetail(licenseId);
+  await loadAuditLogs();
   showStatus(elements.adminStatus, `Opened ${getLicenseLabel(license)}.`, "info");
+}
+
+function resetEditorSelection() {
+  resetLicenseForm();
+  clearInspectorState();
+  loadAuditLogs().catch((error) => {
+    showStatus(elements.adminStatus, error.message, "error");
+  });
 }
 
 async function handleLicenseTableClick(event) {
@@ -1180,16 +1450,22 @@ async function handleLicenseTableClick(event) {
     return;
   }
 
-  if (action === "extend") {
-    setButtonBusy(button, true, "Extending...");
+  if (action === "extend" || action === "add-month" || action === "add-year") {
+    const body = action === "add-year" ? { years: 1 } : { months: 1 };
+    setButtonBusy(button, true, "Adding...");
     try {
-      const payload = await adminRequest(`/api/admin/licenses/${licenseId}/extend`, { method: "POST" });
+      const payload = action === "extend"
+        ? await adminRequest(`/api/admin/licenses/${licenseId}/extend`, { method: "POST" })
+        : await adminRequest(`/api/admin/licenses/${licenseId}/add-time`, {
+            method: "POST",
+            body
+          });
       await refreshDashboard();
       showStatus(elements.adminStatus, `${license.key} now ends on ${formatExpiryDate(payload.license?.expiresAt)}.`, "success");
     } catch (error) {
       showStatus(elements.adminStatus, error.message, "error");
     } finally {
-      setButtonBusy(button, false, "Extending...");
+      setButtonBusy(button, false, "Adding...");
     }
     return;
   }
@@ -1262,11 +1538,43 @@ async function reconcileSessions() {
   }
 }
 
+async function toggleLockdown() {
+  clearStatus(elements.adminStatus);
+  const enabled = !state.lockdown?.enabled;
+  const reason = elements.lockdownReasonField?.value.trim() || "";
+
+  if (enabled && !window.confirm("Enable global lockdown? This closes active plugin sessions and blocks auth, downloads and admin data changes.")) {
+    return;
+  }
+  if (!enabled && !window.confirm("Disable global lockdown?")) {
+    return;
+  }
+
+  setButtonBusy(elements.toggleLockdownButton, true, enabled ? "Locking..." : "Unlocking...");
+  try {
+    const payload = await adminRequest("/api/admin/lockdown", {
+      method: "POST",
+      body: {
+        enabled,
+        reason
+      }
+    });
+    state.lockdown = payload.lockdown || state.lockdown;
+    renderLockdown();
+    await Promise.all([loadOverview(), loadSessions(), loadAuditLogs()]);
+    showStatus(elements.adminStatus, payload.message || (enabled ? "Lockdown enabled." : "Lockdown disabled."), enabled ? "error" : "success");
+  } catch (error) {
+    showStatus(elements.adminStatus, error.message, "error");
+  } finally {
+    setButtonBusy(elements.toggleLockdownButton, false, enabled ? "Locking..." : "Unlocking...");
+  }
+}
+
 elements.loginForm.addEventListener("submit", onLogin);
 elements.logoutButton.addEventListener("click", logout);
 elements.licenseForm.addEventListener("submit", submitLicenseForm);
 elements.deleteLicenseButton.addEventListener("click", deleteCurrentLicense);
-elements.resetFormButton.addEventListener("click", resetLicenseForm);
+elements.resetFormButton.addEventListener("click", resetEditorSelection);
 elements.jarUploadForm?.addEventListener("submit", uploadJarFromForm);
 elements.jarList?.addEventListener("click", (event) => {
   handleJarListClick(event).catch((error) => {
@@ -1308,6 +1616,19 @@ elements.refreshDataButton.addEventListener("click", async () => {
   }
 });
 elements.reconcileSessionsButton.addEventListener("click", reconcileSessions);
+elements.toggleLockdownButton?.addEventListener("click", () => {
+  toggleLockdown().catch((error) => {
+    showStatus(elements.adminStatus, error.message, "error");
+  });
+});
+elements.refreshLockdownButton?.addEventListener("click", async () => {
+  try {
+    await loadLockdown();
+    showStatus(elements.adminStatus, "Lockdown state refreshed.", "info");
+  } catch (error) {
+    showStatus(elements.adminStatus, error.message, "error");
+  }
+});
 elements.backupButton.addEventListener("click", openDownloadKeyModal);
 elements.licenseSearch.addEventListener("input", renderLicenses);
 elements.licensesTableBody.addEventListener("click", handleLicenseTableClick);
@@ -1336,6 +1657,34 @@ elements.refreshSessionsButton.addEventListener("click", async () => {
   } catch (error) {
     showStatus(elements.adminStatus, error.message, "error");
   }
+});
+elements.refreshAuditLogsButton?.addEventListener("click", async () => {
+  try {
+    await loadAuditLogs();
+    showStatus(elements.adminStatus, "Audit logs refreshed.", "info");
+  } catch (error) {
+    showStatus(elements.adminStatus, error.message, "error");
+  }
+});
+[
+  elements.auditSearchField,
+  elements.auditActorField,
+  elements.auditActionField,
+  elements.auditLimitField
+].forEach((input) => {
+  input?.addEventListener("change", () => {
+    loadAuditLogs().catch((error) => {
+      showStatus(elements.adminStatus, error.message, "error");
+    });
+  });
+});
+elements.auditSearchField?.addEventListener("input", () => {
+  window.clearTimeout(elements.auditSearchField._auditTimerId);
+  elements.auditSearchField._auditTimerId = window.setTimeout(() => {
+    loadAuditLogs().catch((error) => {
+      showStatus(elements.adminStatus, error.message, "error");
+    });
+  }, 200);
 });
 elements.downloadKeyForm.addEventListener("submit", submitBackupDownload);
 elements.cancelDownloadButton.addEventListener("click", closeDownloadKeyModal);
