@@ -38,7 +38,7 @@ const RESET_LOOKUP_COOLDOWN_MS = 10_000;
 const LICENSE_SELECT = `
   SELECT l.*,
          (SELECT COUNT(*) FROM license_devices d WHERE d.license_id = l.id AND d.active = 1) AS active_device_count,
-         (SELECT COUNT(*) FROM license_instances i WHERE i.license_id = l.id AND i.active = 1) AS active_instance_count,
+         (SELECT COUNT(*) FROM license_instances i WHERE i.license_id = l.id AND i.active = 1 AND i.slot_claimed = 1) AS active_instance_count,
          (SELECT COUNT(DISTINCT s.instance_id)
             FROM service_sessions s
            WHERE s.license_id = l.id
@@ -181,6 +181,7 @@ function serializeInstance(row) {
     lastSeenAt: row.last_seen_at,
     lastServerName: row.last_server_name,
     active: Boolean(row.active),
+    slotClaimed: Boolean(row.slot_claimed),
     resetAt: row.reset_at,
     online: (row.open_session_count || 0) > 0,
     openSessionCount: row.open_session_count || 0,
@@ -325,10 +326,10 @@ function getOverview() {
     expiredLicenses: db.prepare("SELECT COUNT(*) AS count FROM licenses WHERE expires_at IS NOT NULL AND expires_at <= ?").get(nowIso()).count,
     activeDevices: db.prepare("SELECT COUNT(*) AS count FROM license_devices WHERE active = 1").get().count,
     activeInstances: db.prepare(`
-      SELECT COUNT(DISTINCT instance_id) AS count
-        FROM service_sessions
-       WHERE closed_at IS NULL
-         AND instance_id IS NOT NULL
+      SELECT COUNT(*) AS count
+        FROM license_instances
+       WHERE active = 1
+         AND slot_claimed = 1
     `).get().count,
     openSessions: db.prepare("SELECT COUNT(*) AS count FROM service_sessions WHERE closed_at IS NULL").get().count,
     totalAuditEvents: db.prepare("SELECT COUNT(*) AS count FROM audit_logs").get().count
@@ -691,9 +692,11 @@ function activateLicense(payload = {}) {
         FROM license_instances
        WHERE license_id = ?
          AND active = 1
+         AND slot_claimed = 1
     `).get(license.id).count;
 
-    if (!instance && activeInstanceCount >= license.max_instances) {
+    const instanceClaimsSlot = Boolean(instance?.active) && Boolean(instance?.slot_claimed);
+    if ((!instance || !instanceClaimsSlot) && activeInstanceCount >= license.max_instances) {
       throw new HttpError(403, "This license has reached its instance limit.", {
         maxInstances: license.max_instances,
         activeInstanceCount
@@ -709,8 +712,9 @@ function activateLicense(payload = {}) {
                last_seen_at = ?,
                last_server_name = ?,
                active = 1,
+               slot_claimed = 1,
                reset_at = NULL
-         WHERE id = ?
+          WHERE id = ?
       `).run(
         instanceFingerprint.normalized.instanceUuid,
         instanceName,
@@ -731,8 +735,9 @@ function activateLicense(payload = {}) {
           first_seen_at,
           last_seen_at,
           last_server_name,
-          active
-        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, 1)
+          active,
+          slot_claimed
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, 1, 1)
       `).run(
         license.id,
         device.id,
@@ -950,6 +955,7 @@ function resetLicenseDevices(license, deviceIds = [], options = {}) {
     db.prepare(`
       UPDATE license_instances
          SET active = 0,
+             slot_claimed = 0,
              reset_at = ?
        WHERE license_id = ?
          AND device_id IN (${placeholders})
@@ -1031,6 +1037,7 @@ function resetLicenseInstances(license, instanceIds = [], options = {}) {
     db.prepare(`
       UPDATE license_instances
          SET active = 0,
+             slot_claimed = 0,
              reset_at = ?
        WHERE license_id = ?
          AND id IN (${placeholders})

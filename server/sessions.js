@@ -2,6 +2,40 @@ const { getDatabase } = require("./database");
 const { config } = require("./config");
 const { generateToken, nowIso } = require("./utils");
 
+function claimInstanceSlot(instanceId) {
+  if (!Number.isFinite(Number(instanceId))) {
+    return;
+  }
+
+  getDatabase().prepare(`
+    UPDATE license_instances
+       SET active = 1,
+           slot_claimed = 1,
+           reset_at = NULL
+     WHERE id = ?
+  `).run(instanceId);
+}
+
+function syncInstanceSlotClaim(instanceId) {
+  if (!Number.isFinite(Number(instanceId))) {
+    return;
+  }
+
+  const db = getDatabase();
+  const openSessionCount = db.prepare(`
+    SELECT COUNT(*) AS count
+      FROM service_sessions
+     WHERE instance_id = ?
+       AND closed_at IS NULL
+  `).get(instanceId).count;
+
+  db.prepare(`
+    UPDATE license_instances
+       SET slot_claimed = ?
+     WHERE id = ?
+  `).run(openSessionCount > 0 ? 1 : 0, instanceId);
+}
+
 function createSession({
   licenseId,
   deviceId,
@@ -47,6 +81,8 @@ function createSession({
     timestamp
   );
 
+  claimInstanceSlot(instanceId);
+
   return {
     token: sessionToken,
     startedAt: timestamp
@@ -59,7 +95,7 @@ function closeOpenSessionsForInstance(instanceId, reason = "superseded", closedA
   }
 
   const db = getDatabase();
-  db.prepare(`
+  const result = db.prepare(`
     UPDATE service_sessions
        SET closed_at = ?,
            close_reason = ?,
@@ -67,6 +103,10 @@ function closeOpenSessionsForInstance(instanceId, reason = "superseded", closedA
      WHERE instance_id = ?
        AND closed_at IS NULL
   `).run(closedAt, reason, instanceId);
+
+  if (result.changes > 0) {
+    syncInstanceSlotClaim(instanceId);
+  }
 }
 
 function touchSession(sessionToken, updates = {}) {
@@ -101,6 +141,16 @@ function closeSession(sessionToken, reason = "shutdown", options = {}) {
   const db = getDatabase();
   const closedAt = options.closedAt || nowIso();
   const staleClosed = options.stale ? 1 : 0;
+  const existing = db.prepare(`
+    SELECT instance_id
+      FROM service_sessions
+     WHERE session_token = ?
+       AND closed_at IS NULL
+  `).get(sessionToken);
+
+  if (!existing) {
+    return false;
+  }
 
   const result = db.prepare(`
     UPDATE service_sessions
@@ -110,6 +160,10 @@ function closeSession(sessionToken, reason = "shutdown", options = {}) {
      WHERE session_token = ?
        AND closed_at IS NULL
   `).run(closedAt, reason, staleClosed, sessionToken);
+
+  if (result.changes > 0) {
+    syncInstanceSlotClaim(existing.instance_id);
+  }
 
   return result.changes > 0;
 }

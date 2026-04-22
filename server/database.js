@@ -75,6 +75,7 @@ function initializeDatabase() {
       last_seen_at TEXT NOT NULL,
       last_server_name TEXT NOT NULL DEFAULT '',
       active INTEGER NOT NULL DEFAULT 1,
+      slot_claimed INTEGER NOT NULL DEFAULT 0,
       reset_at TEXT,
       FOREIGN KEY (license_id) REFERENCES licenses(id) ON DELETE CASCADE,
       FOREIGN KEY (device_id) REFERENCES license_devices(id) ON DELETE CASCADE,
@@ -150,6 +151,7 @@ function initializeDatabase() {
   ensureColumn(db, "service_sessions", "instance_id", "INTEGER");
   ensureColumn(db, "service_sessions", "instance_hash", "TEXT NOT NULL DEFAULT ''");
   ensureColumn(db, "service_sessions", "instance_name", "TEXT NOT NULL DEFAULT ''");
+  ensureColumn(db, "license_instances", "slot_claimed", "INTEGER NOT NULL DEFAULT 0");
   ensureColumn(db, "download_jars", "notes", "TEXT NOT NULL DEFAULT ''");
   ensureColumn(db, "download_jars", "access_scope", "TEXT NOT NULL DEFAULT 'buyers'");
   ensureColumn(db, "download_jars", "original_name", "TEXT NOT NULL DEFAULT ''");
@@ -157,11 +159,25 @@ function initializeDatabase() {
   ensureColumn(db, "download_jars", "sort_order", "INTEGER NOT NULL DEFAULT 0");
 
   db.exec(`
+    UPDATE license_instances
+       SET slot_claimed = CASE
+         WHEN EXISTS (
+           SELECT 1
+             FROM service_sessions s
+            WHERE s.instance_id = license_instances.id
+              AND s.closed_at IS NULL
+         ) THEN 1
+         ELSE 0
+       END
+  `);
+
+  db.exec(`
     CREATE INDEX IF NOT EXISTS idx_licenses_key ON licenses (license_key);
     CREATE INDEX IF NOT EXISTS idx_licenses_expiry ON licenses (active, expires_at);
     CREATE INDEX IF NOT EXISTS idx_devices_license_active ON license_devices (license_id, active);
     CREATE INDEX IF NOT EXISTS idx_instances_license_active ON license_instances (license_id, active);
     CREATE INDEX IF NOT EXISTS idx_instances_device_active ON license_instances (device_id, active);
+    CREATE INDEX IF NOT EXISTS idx_instances_license_claimed ON license_instances (license_id, active, slot_claimed);
     CREATE INDEX IF NOT EXISTS idx_sessions_open ON service_sessions (closed_at, license_id, device_id);
     CREATE INDEX IF NOT EXISTS idx_sessions_instance_open ON service_sessions (closed_at, instance_id);
     CREATE INDEX IF NOT EXISTS idx_audit_logs_license ON audit_logs (license_id, created_at);
