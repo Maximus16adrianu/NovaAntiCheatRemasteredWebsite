@@ -269,7 +269,7 @@
         <div id="lookupStatus" class="status-banner hidden"></div>
 
         <section id="lookupResult" class="lookup-result hidden">
-          <div class="license-meta">
+          <div class="license-meta manage-summary-grid">
             <div>
               <span class="meta-label">License</span>
               <strong id="licenseDisplayName">-</strong>
@@ -296,60 +296,27 @@
             </div>
           </div>
 
-          <div class="manage-grid">
-            <section class="manage-card">
-              <div class="devices-header">
-                <h4>Registered devices</h4>
-                <span id="deviceCountChip" class="small-chip">0 devices</span>
-              </div>
+          <div class="manage-action-grid">
+            <button id="openDeviceManagerButton" type="button" class="manage-action-card" disabled>
+              <span class="section-pill">Reset</span>
+              <strong>Registered devices</strong>
+              <small>Select the HWIDs you want to clear.</small>
+              <span id="deviceCountChip" class="small-chip">0 devices</span>
+            </button>
 
-              <div id="devicesList" class="devices-grid"></div>
+            <button id="openInstanceViewerButton" type="button" class="manage-action-card" disabled>
+              <span class="section-pill">Instances</span>
+              <strong>Stored instances</strong>
+              <small>Check which servers are stored on this license.</small>
+              <span id="instanceCountChip" class="small-chip">0 instances</span>
+            </button>
 
-              <div class="actions-row">
-                <button id="submitResetButton" type="button" class="button button-primary" disabled>Reset selected HWIDs</button>
-                <button id="clearSelectionButton" type="button" class="button button-secondary" disabled>Clear selection</button>
-              </div>
-            </section>
-
-            <section class="manage-card">
-              <div class="devices-header">
-                <h4>Stored instances</h4>
-                <span id="instanceCountChip" class="small-chip">0 instances</span>
-              </div>
-              <div id="instancesList" class="instance-list"></div>
-            </section>
-          </div>
-
-          <div class="manage-grid">
-            <section class="manage-card">
-              <div class="devices-header">
-                <h4>Allowed downloads</h4>
-                <span id="manageDownloadCountChip" class="small-chip">0 builds</span>
-              </div>
-              <div id="manageDownloadsList" class="download-list inline-download-list"></div>
-            </section>
-
-            <section class="manage-card">
-              <div class="devices-header">
-                <h4>Discord webhook</h4>
-                <span id="webhookCountChip" class="small-chip">0 alerts</span>
-              </div>
-
-              <form id="webhookForm" class="stack-form">
-                <label class="field-label" for="manageWebhookUrl">Discord webhook URL</label>
-                <input id="manageWebhookUrl" type="text" autocomplete="off" spellcheck="false" placeholder="https://discord.com/api/webhooks/...">
-
-                <div>
-                  <span class="field-label">Send these alerts</span>
-                  <div id="manageWebhookEvents" class="webhook-event-list"></div>
-                </div>
-
-                <div class="actions-row">
-                  <button id="saveWebhookButton" type="submit" class="button button-primary">Save webhook</button>
-                  <button id="clearWebhookButton" type="button" class="button button-secondary">Clear webhook</button>
-                </div>
-              </form>
-            </section>
+            <button id="openWebhookSettingsButton" type="button" class="manage-action-card" disabled>
+              <span class="section-pill">Webhook</span>
+              <strong>Discord alerts</strong>
+              <small>Choose which events should be sent to your webhook.</small>
+              <span id="webhookCountChip" class="small-chip">0 alerts</span>
+            </button>
           </div>
         </section>
       </section>
@@ -375,6 +342,69 @@
       <a class="mobile-nav-link" href="#reset-card">Manage License</a>
     </nav>
   </aside>
+
+  <div id="deviceManagerModal" class="modal hidden" aria-hidden="true">
+    <div class="modal-panel panel">
+      <div class="downloads-head">
+        <div>
+          <p class="section-pill">Manage License</p>
+          <h3>Registered devices</h3>
+          <p class="section-copy">Only reset the devices you actually want removed.</p>
+        </div>
+        <button id="closeDeviceManagerButton" type="button" class="button button-secondary">Close</button>
+      </div>
+
+      <div id="devicesList" class="devices-grid"></div>
+
+      <div class="actions-row">
+        <button id="submitResetButton" type="button" class="button button-primary" disabled>Reset selected HWIDs</button>
+        <button id="clearSelectionButton" type="button" class="button button-secondary" disabled>Clear selection</button>
+      </div>
+    </div>
+  </div>
+
+  <div id="instanceViewerModal" class="modal hidden" aria-hidden="true">
+    <div class="modal-panel panel">
+      <div class="downloads-head">
+        <div>
+          <p class="section-pill">Manage License</p>
+          <h3>Stored instances</h3>
+          <p class="section-copy">These are the stored server instances tied to this license.</p>
+        </div>
+        <button id="closeInstanceViewerButton" type="button" class="button button-secondary">Close</button>
+      </div>
+
+      <div id="instancesList" class="instance-list"></div>
+    </div>
+  </div>
+
+  <div id="webhookSettingsModal" class="modal hidden" aria-hidden="true">
+    <div class="modal-panel panel">
+      <div class="downloads-head">
+        <div>
+          <p class="section-pill">Manage License</p>
+          <h3>Discord webhook</h3>
+          <p class="section-copy">Save a Discord webhook and choose which alerts you want to receive.</p>
+        </div>
+        <button id="closeWebhookSettingsButton" type="button" class="button button-secondary">Close</button>
+      </div>
+
+      <form id="webhookForm" class="stack-form">
+        <label class="field-label" for="manageWebhookUrl">Discord webhook URL</label>
+        <input id="manageWebhookUrl" type="text" autocomplete="off" spellcheck="false" placeholder="https://discord.com/api/webhooks/...">
+
+        <div>
+          <span class="field-label">Send these alerts</span>
+          <div id="manageWebhookEvents" class="webhook-event-list"></div>
+        </div>
+
+        <div class="actions-row">
+          <button id="saveWebhookButton" type="submit" class="button button-primary">Save webhook</button>
+          <button id="clearWebhookButton" type="button" class="button button-secondary">Clear webhook</button>
+        </div>
+      </form>
+    </div>
+  </div>
 
   <div id="downloadsModal" class="modal hidden" aria-hidden="true">
     <div class="modal-panel panel downloads-modal-panel">

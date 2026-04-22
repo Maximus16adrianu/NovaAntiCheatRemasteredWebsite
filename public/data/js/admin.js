@@ -48,6 +48,10 @@ const elements = {
   lockdownReasonText: document.getElementById("lockdownReasonText"),
   toggleLockdownButton: document.getElementById("toggleLockdownButton"),
   refreshLockdownButton: document.getElementById("refreshLockdownButton"),
+  openInspectorButton: document.getElementById("openInspectorButton"),
+  openJarManagerButton: document.getElementById("openJarManagerButton"),
+  openSessionsButton: document.getElementById("openSessionsButton"),
+  openAuditButton: document.getElementById("openAuditButton"),
   refreshDataButton: document.getElementById("refreshDataButton"),
   reconcileSessionsButton: document.getElementById("reconcileSessionsButton"),
   backupButton: document.getElementById("backupButton"),
@@ -109,6 +113,14 @@ const elements = {
   auditActionField: document.getElementById("auditActionField"),
   auditLimitField: document.getElementById("auditLimitField"),
   auditLogsTableBody: document.getElementById("auditLogsTableBody"),
+  inspectorModal: document.getElementById("inspectorModal"),
+  closeInspectorButton: document.getElementById("closeInspectorButton"),
+  jarManagerModal: document.getElementById("jarManagerModal"),
+  closeJarManagerButton: document.getElementById("closeJarManagerButton"),
+  sessionsModal: document.getElementById("sessionsModal"),
+  closeSessionsButton: document.getElementById("closeSessionsButton"),
+  auditModal: document.getElementById("auditModal"),
+  closeAuditButton: document.getElementById("closeAuditButton"),
   downloadKeyModal: document.getElementById("downloadKeyModal"),
   downloadKeyForm: document.getElementById("downloadKeyForm"),
   downloadKeyInput: document.getElementById("downloadKeyInput"),
@@ -132,6 +144,22 @@ function showStatus(element, message, tone = "info") {
 function clearStatus(element) {
   element.textContent = "";
   element.className = "status-banner hidden";
+}
+
+function openModal(modal) {
+  if (!modal) {
+    return;
+  }
+  modal.classList.remove("hidden");
+  modal.setAttribute("aria-hidden", "false");
+}
+
+function closeModal(modal) {
+  if (!modal) {
+    return;
+  }
+  modal.classList.add("hidden");
+  modal.setAttribute("aria-hidden", "true");
 }
 
 function setButtonBusy(button, busy, busyLabel) {
@@ -198,6 +226,14 @@ function formatBytes(value) {
   }
 
   return `${size.toFixed(size >= 100 ? 0 : 1).replace(/\.0$/, "")} ${units[unitIndex]}`;
+}
+
+function cleanLabel(value, fallback = "Unknown") {
+  const text = String(value ?? "").trim();
+  if (!text || text === "." || text === "-") {
+    return fallback;
+  }
+  return text;
 }
 
 function badge(label, tone = "") {
@@ -442,7 +478,7 @@ function renderLicenses() {
       <td>${esc(formatMoney(license.pricing?.recommendedPriceEur || 0))}</td>
       <td>
         <div class="inline-actions">
-          <button class="mini-button primary" data-action="open" data-license-id="${license.id}">Open</button>
+          <button class="mini-button primary" data-action="open" data-license-id="${license.id}">Edit</button>
           ${addTimeActions}
           <button class="mini-button danger" data-action="delete" data-license-id="${license.id}">Delete</button>
         </div>
@@ -482,7 +518,7 @@ function renderDevices(devices) {
     const row = document.createElement("tr");
     row.innerHTML = `
       <td class="pick-cell"><input class="device-selector" type="checkbox" value="${device.id}"></td>
-      <td><strong>${esc(device.deviceName || "Unknown device")}</strong></td>
+      <td><strong>${esc(cleanLabel(device.deviceName, "Unknown device"))}</strong></td>
       <td>${device.online ? badge("Online", "success") : badge(device.active ? "Active" : "Reset", device.active ? "" : "warning")}</td>
       <td>${esc(String(device.openSessionCount || 0))}</td>
       <td>${esc(device.lastUsername || "unknown")}</td>
@@ -523,13 +559,13 @@ function renderInstances(instances) {
     row.innerHTML = `
       <td class="pick-cell"><input class="instance-selector" type="checkbox" value="${instance.id}"></td>
       <td>
-        <strong>${esc(instance.instanceName || "Unknown instance")}</strong>
+        <strong>${esc(cleanLabel(instance.instanceName, "Unknown instance"))}</strong>
         <small>${esc(instance.instanceUuid || instance.instanceHash || "")}</small>
       </td>
       <td>${buildInstanceStateBadge(instance)}</td>
       <td>${esc(String(instance.openSessionCount || 0))}</td>
-      <td>${esc(instance.deviceName || "Unknown device")}</td>
-      <td>${esc(instance.lastServerName || "Unknown server")}</td>
+      <td>${esc(cleanLabel(instance.deviceName, "Unknown device"))}</td>
+      <td>${esc(cleanLabel(instance.lastServerName, "Unknown server"))}</td>
       <td>${esc(formatDate(instance.firstSeenAt))}</td>
       <td>${esc(formatDate(instance.lastSeenAt))}</td>
     `;
@@ -567,12 +603,12 @@ function renderSessions(sessions) {
         <small>${esc(session.customerUsername || "")}</small>
       </td>
       <td>
-        ${esc(session.instanceName || "Unknown instance")}
+        ${esc(cleanLabel(session.instanceName, "Unknown instance"))}
         <small>${esc(session.instanceHash || "")}</small>
       </td>
-      <td>${esc(session.deviceName || "Unknown device")}</td>
+      <td>${esc(cleanLabel(session.deviceName, "Unknown device"))}</td>
       <td>
-        ${esc(session.serverName || "Unknown server")}
+        ${esc(cleanLabel(session.serverName, "Unknown server"))}
         <small>${esc(session.pluginVersion || "unknown")}</small>
       </td>
       <td>${session.online ? badge("Online", "success") : badge(session.staleClosed ? "Timed out" : "Closed", session.staleClosed ? "warning" : "")}</td>
@@ -1039,6 +1075,9 @@ function renderLockdown() {
   if (elements.toggleLockdownButton) {
     elements.toggleLockdownButton.textContent = enabled ? "Disable lockdown" : "Enable lockdown";
   }
+  if (elements.openInspectorButton) {
+    elements.openInspectorButton.disabled = state.selectedLicenseId == null;
+  }
 }
 
 function renderAuditFilters() {
@@ -1133,11 +1172,47 @@ async function loadAuditLogs() {
   renderAuditLogs();
 }
 
+async function openInspectorModal() {
+  if (state.selectedLicenseId == null) {
+    throw new Error("Open a license first.");
+  }
+  await loadLicenseDetail(state.selectedLicenseId);
+  closeModal(elements.jarManagerModal);
+  closeModal(elements.sessionsModal);
+  closeModal(elements.auditModal);
+  openModal(elements.inspectorModal);
+}
+
+async function openJarManagerModal() {
+  await loadJars();
+  closeModal(elements.inspectorModal);
+  closeModal(elements.sessionsModal);
+  closeModal(elements.auditModal);
+  openModal(elements.jarManagerModal);
+}
+
+async function openSessionsModal() {
+  await loadSessions();
+  closeModal(elements.inspectorModal);
+  closeModal(elements.jarManagerModal);
+  closeModal(elements.auditModal);
+  openModal(elements.sessionsModal);
+}
+
+async function openAuditModal() {
+  await loadAuditLogs();
+  closeModal(elements.inspectorModal);
+  closeModal(elements.jarManagerModal);
+  closeModal(elements.sessionsModal);
+  openModal(elements.auditModal);
+}
+
 async function loadLicenseDetail(licenseId) {
   state.selectedLicenseId = licenseId;
   elements.refreshDevicesButton.disabled = false;
   elements.refreshInstancesButton.disabled = false;
   updateResetButtons();
+  renderLockdown();
 
   const license = state.licenses.find((entry) => entry.id === licenseId);
   const label = getLicenseLabel(license);
@@ -1160,6 +1235,7 @@ function clearInspectorState() {
   state.selectedLicenseId = null;
   state.selectedDevices.clear();
   state.selectedInstances.clear();
+  closeModal(elements.inspectorModal);
   elements.devicesHeading.textContent = "Devices";
   elements.devicesSubheading.textContent = "Open a license to inspect registered HWIDs.";
   elements.instancesHeading.textContent = "Instances";
@@ -1169,6 +1245,7 @@ function clearInspectorState() {
   setEmptyDeviceRows();
   setEmptyInstanceRows();
   updateResetButtons();
+  renderLockdown();
 }
 
 function syncEditedLicenseForm() {
@@ -1238,6 +1315,10 @@ function logout() {
   localStorage.removeItem(ADMIN_KEY_STORAGE);
   elements.apiKey.value = "";
   closeDownloadKeyModal();
+  closeModal(elements.inspectorModal);
+  closeModal(elements.jarManagerModal);
+  closeModal(elements.sessionsModal);
+  closeModal(elements.auditModal);
   resetLicenseForm();
   resetJarUploadForm();
   clearInspectorState();
@@ -1616,6 +1697,30 @@ elements.refreshDataButton.addEventListener("click", async () => {
   }
 });
 elements.reconcileSessionsButton.addEventListener("click", reconcileSessions);
+elements.openInspectorButton?.addEventListener("click", () => {
+  openInspectorModal().catch((error) => {
+    showStatus(elements.adminStatus, error.message, "error");
+  });
+});
+elements.openJarManagerButton?.addEventListener("click", () => {
+  openJarManagerModal().catch((error) => {
+    showStatus(elements.adminStatus, error.message, "error");
+  });
+});
+elements.openSessionsButton?.addEventListener("click", () => {
+  openSessionsModal().catch((error) => {
+    showStatus(elements.adminStatus, error.message, "error");
+  });
+});
+elements.openAuditButton?.addEventListener("click", () => {
+  openAuditModal().catch((error) => {
+    showStatus(elements.adminStatus, error.message, "error");
+  });
+});
+elements.closeInspectorButton?.addEventListener("click", () => closeModal(elements.inspectorModal));
+elements.closeJarManagerButton?.addEventListener("click", () => closeModal(elements.jarManagerModal));
+elements.closeSessionsButton?.addEventListener("click", () => closeModal(elements.sessionsModal));
+elements.closeAuditButton?.addEventListener("click", () => closeModal(elements.auditModal));
 elements.toggleLockdownButton?.addEventListener("click", () => {
   toggleLockdown().catch((error) => {
     showStatus(elements.adminStatus, error.message, "error");
@@ -1693,10 +1798,35 @@ elements.downloadKeyModal.addEventListener("click", (event) => {
     closeDownloadKeyModal();
   }
 });
+[
+  elements.inspectorModal,
+  elements.jarManagerModal,
+  elements.sessionsModal,
+  elements.auditModal
+].forEach((modal) => {
+  modal?.addEventListener("click", (event) => {
+    if (event.target === modal) {
+      closeModal(modal);
+    }
+  });
+});
 document.addEventListener("keydown", (event) => {
-  if (event.key === "Escape" && !elements.downloadKeyModal.classList.contains("hidden")) {
+  if (event.key !== "Escape") {
+    return;
+  }
+  if (!elements.downloadKeyModal.classList.contains("hidden")) {
     closeDownloadKeyModal();
   }
+  [
+    elements.inspectorModal,
+    elements.jarManagerModal,
+    elements.sessionsModal,
+    elements.auditModal
+  ].forEach((modal) => {
+    if (modal && !modal.classList.contains("hidden")) {
+      closeModal(modal);
+    }
+  });
 });
 
 [elements.licenseTypeField, elements.maxSlotsField].forEach((input) => {

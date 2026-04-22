@@ -355,6 +355,30 @@ textarea:focus {
   padding: 20px;
 }
 
+.tool-grid {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 16px;
+  margin-top: 16px;
+}
+
+.tool-card {
+  display: grid;
+  gap: 14px;
+  padding: 18px;
+  min-height: 196px;
+}
+
+.tool-card h3 {
+  margin: 0;
+  font-family: "Space Grotesk", sans-serif;
+  font-size: 1.1rem;
+}
+
+.tool-card .button {
+  margin-top: auto;
+}
+
 .lockdown-layout,
 .audit-filter-grid {
   display: grid;
@@ -517,6 +541,20 @@ textarea:focus {
 .jar-panel {
   margin-top: 16px;
   padding: 20px;
+}
+
+.wide-modal {
+  width: min(100%, 1380px);
+  max-height: min(92vh, 980px);
+  overflow: auto;
+}
+
+.modal-detail-grid {
+  margin-top: 6px;
+}
+
+.modal-jar-grid {
+  margin-top: 6px;
 }
 
 .jar-grid {
@@ -780,10 +818,17 @@ textarea:focus {
   .workspace-grid,
   .detail-grid,
   .jar-grid,
-  .stats-grid,
   .lockdown-layout,
   .audit-filter-grid {
     grid-template-columns: 1fr;
+  }
+
+  .stats-grid {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
+
+  .tool-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
   }
 
   .search-input {
@@ -794,6 +839,10 @@ textarea:focus {
 @media (max-width: 860px) {
   .admin-shell {
     padding: 14px;
+  }
+
+  .modal {
+    padding: 10px;
   }
 
   .admin-topbar,
@@ -812,6 +861,11 @@ textarea:focus {
     grid-template-columns: 1fr;
   }
 
+  .stats-grid,
+  .tool-grid {
+    grid-template-columns: 1fr;
+  }
+
   .jar-item-shell,
   .jar-item-tools {
     align-items: stretch;
@@ -827,5 +881,12 @@ textarea:focus {
 
   .jar-item-summary {
     grid-template-columns: 1fr;
+  }
+
+  .wide-modal {
+    width: min(100%, 100vw);
+    max-height: 100vh;
+    min-height: calc(100vh - 36px);
+    border-radius: 18px;
   }
 }

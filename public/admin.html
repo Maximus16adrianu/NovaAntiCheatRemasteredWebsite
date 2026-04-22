@@ -254,221 +254,273 @@
           </article>
         </section>
 
-        <section class="panel jar-panel">
-          <div class="section-head">
-            <div>
-              <p class="section-label">Downloads</p>
-              <h2>Jar manager</h2>
-              <p class="section-note">Upload jars, choose their access, then drag them into the order shown on the main page.</p>
-            </div>
-          </div>
-
-          <div class="jar-grid">
-            <form id="jarUploadForm" class="panel jar-upload-card stack-form">
-              <div>
-                <label class="field-label" for="jarFileField">Jar file</label>
-                <input id="jarFileField" type="file" accept=".jar,application/java-archive,application/octet-stream" required>
-                <p class="field-help">Each upload stores the jar inside the private server folder.</p>
-              </div>
-
-              <div>
-                <label class="field-label" for="jarNameField">Public name</label>
-                <input id="jarNameField" type="text" autocomplete="off" spellcheck="false" placeholder="Nova 1.21.11 Build">
-              </div>
-
-              <div>
-                <label class="field-label" for="jarNoteField">Public note</label>
-                <textarea id="jarNoteField" rows="4" placeholder="Optional note shown in the public download list"></textarea>
-              </div>
-
-              <div>
-                <label class="field-label" for="jarVersionsField">Supported versions</label>
-                <input id="jarVersionsField" type="text" autocomplete="off" spellcheck="false" placeholder="1.13-1.21.11, 1.8 legacy">
-              </div>
-
-              <div>
-                <label class="field-label" for="jarChannelField">Release channel</label>
-                <select id="jarChannelField">
-                  <option value="stable" selected>Stable</option>
-                  <option value="beta">Beta</option>
-                  <option value="legacy">Legacy</option>
-                </select>
-              </div>
-
-              <div>
-                <label class="field-label" for="jarChangelogField">Changelog</label>
-                <textarea id="jarChangelogField" rows="5" placeholder="What changed in this build?"></textarea>
-              </div>
-
-              <div>
-                <label class="field-label" for="jarAccessField">Download access</label>
-                <select id="jarAccessField">
-                  <option value="buyers" selected>Buyers only</option>
-                  <option value="public">Everybody</option>
-                </select>
-                <p class="field-help">Buyers only is the default. Public jars can be downloaded without a license.</p>
-              </div>
-
-              <label class="checkbox-row">
-                <input id="jarRecommendedField" type="checkbox">
-                <span>Mark as the latest recommended build</span>
-              </label>
-
-              <div class="actions-row">
-                <button id="uploadJarButton" type="submit" class="button button-primary">Upload jar</button>
-              </div>
-            </form>
-
-            <div class="jar-manager-card">
-              <div class="jar-manager-head">
-                <div>
-                  <h3>Uploaded jars</h3>
-                  <p class="section-note">Drag rows to reorder them. Open one when you want to edit the jar details.</p>
-                </div>
-                <span id="jarCountChip" class="jar-count-chip">0 jars</span>
-              </div>
-
-              <div id="jarList" class="jar-list"></div>
-            </div>
-          </div>
-        </section>
-
-        <section class="detail-grid">
-          <article class="panel detail-panel">
-            <div class="section-head">
-              <div>
-                <p class="section-label">Devices</p>
-                <h2 id="devicesHeading">Devices</h2>
-                <p id="devicesSubheading" class="section-note">Open a license to inspect registered HWIDs.</p>
-              </div>
-              <div class="toolbar">
-                <button id="refreshDevicesButton" type="button" class="button button-secondary" disabled>Refresh</button>
-                <button id="resetDevicesButton" type="button" class="button button-primary" disabled>Reset selected</button>
-              </div>
-            </div>
-
-            <div class="table-scroll">
-              <table class="data-table compact-table">
-                <thead>
-                  <tr>
-                    <th>Pick</th>
-                    <th>Device</th>
-                    <th>Status</th>
-                    <th>Sessions</th>
-                    <th>Last user</th>
-                    <th>First seen</th>
-                    <th>Last seen</th>
-                    <th>HWID</th>
-                  </tr>
-                </thead>
-                <tbody id="devicesTableBody"></tbody>
-              </table>
-            </div>
+        <section class="tool-grid">
+          <article class="panel tool-card">
+            <p class="section-label">Inspector</p>
+            <h3>License Inspector</h3>
+            <p class="section-note">Open the selected license in a separate device and instance GUI.</p>
+            <button id="openInspectorButton" type="button" class="button button-primary">Open inspector</button>
           </article>
 
-          <article class="panel detail-panel">
-            <div class="section-head">
-              <div>
-                <p class="section-label">Instances</p>
-                <h2 id="instancesHeading">Instances</h2>
-                <p id="instancesSubheading" class="section-note">Open a license to inspect registered server instances.</p>
-              </div>
-              <div class="toolbar">
-                <button id="refreshInstancesButton" type="button" class="button button-secondary" disabled>Refresh</button>
-                <button id="resetInstancesButton" type="button" class="button button-primary" disabled>Reset selected</button>
-              </div>
-            </div>
-
-            <div class="table-scroll">
-              <table class="data-table compact-table">
-                <thead>
-                  <tr>
-                    <th>Pick</th>
-                    <th>Instance</th>
-                    <th>Status</th>
-                    <th>Sessions</th>
-                    <th>Device</th>
-                    <th>Server</th>
-                    <th>First seen</th>
-                    <th>Last seen</th>
-                  </tr>
-                </thead>
-                <tbody id="instancesTableBody"></tbody>
-              </table>
-            </div>
+          <article class="panel tool-card">
+            <p class="section-label">Downloads</p>
+            <h3>Jar Manager</h3>
+            <p class="section-note">Upload builds, edit release info and mark the recommended jar.</p>
+            <button id="openJarManagerButton" type="button" class="button button-primary">Open jars</button>
           </article>
-        </section>
 
-        <section class="panel sessions-panel">
-          <div class="section-head">
-            <div>
-              <p class="section-label">Sessions</p>
-              <h2>Recent sessions</h2>
-              <p class="section-note">Most recent activity across all licenses.</p>
-            </div>
-            <div class="toolbar">
-              <button id="refreshSessionsButton" type="button" class="button button-secondary">Refresh</button>
-            </div>
-          </div>
+          <article class="panel tool-card">
+            <p class="section-label">Sessions</p>
+            <h3>Live Activity</h3>
+            <p class="section-note">Review recent sessions without stretching the main dashboard.</p>
+            <button id="openSessionsButton" type="button" class="button button-primary">Open sessions</button>
+          </article>
 
-          <div class="table-scroll">
-            <table class="data-table">
-              <thead>
-                <tr>
-                  <th>License</th>
-                  <th>Instance</th>
-                  <th>Device</th>
-                  <th>Server</th>
-                  <th>Status</th>
-                  <th>Heartbeat</th>
-                  <th>Close reason</th>
-                </tr>
-              </thead>
-              <tbody id="sessionsTableBody"></tbody>
-            </table>
-          </div>
-        </section>
-
-        <section class="panel audit-panel">
-          <div class="section-head">
-            <div>
-              <p class="section-label">Audit</p>
-              <h2>Audit logs</h2>
-              <p class="section-note">Filter plugin auth, resets, admin actions and lockdown changes.</p>
-            </div>
-            <div class="toolbar">
-              <button id="refreshAuditLogsButton" type="button" class="button button-secondary">Refresh</button>
-            </div>
-          </div>
-
-          <div class="audit-filter-grid">
-            <input id="auditSearchField" class="search-input" type="search" placeholder="Search key, user, action or details">
-            <select id="auditActorField">
-              <option value="">All actors</option>
-            </select>
-            <select id="auditActionField">
-              <option value="">All actions</option>
-            </select>
-            <input id="auditLimitField" type="number" min="10" max="500" value="150">
-          </div>
-
-          <div class="table-scroll">
-            <table class="data-table">
-              <thead>
-                <tr>
-                  <th>When</th>
-                  <th>Actor</th>
-                  <th>Action</th>
-                  <th>License</th>
-                  <th>Details</th>
-                </tr>
-              </thead>
-              <tbody id="auditLogsTableBody"></tbody>
-            </table>
-          </div>
+          <article class="panel tool-card">
+            <p class="section-label">Audit</p>
+            <h3>Audit Logs</h3>
+            <p class="section-note">Search resets, auth denials, webhook changes and lockdown actions.</p>
+            <button id="openAuditButton" type="button" class="button button-primary">Open logs</button>
+          </article>
         </section>
       </section>
     </main>
+  </div>
+
+  <div id="inspectorModal" class="modal hidden" aria-hidden="true">
+    <div class="modal-panel panel wide-modal">
+      <div class="section-head">
+        <div>
+          <p class="section-label">Inspector</p>
+          <h2>License inspector</h2>
+          <p class="section-note">Registered devices and stored instances for the selected license.</p>
+        </div>
+        <button id="closeInspectorButton" type="button" class="button button-secondary">Close</button>
+      </div>
+
+      <section class="detail-grid modal-detail-grid">
+        <article class="panel detail-panel">
+          <div class="section-head">
+            <div>
+              <p class="section-label">Devices</p>
+              <h2 id="devicesHeading">Devices</h2>
+              <p id="devicesSubheading" class="section-note">Open a license to inspect registered HWIDs.</p>
+            </div>
+            <div class="toolbar">
+              <button id="refreshDevicesButton" type="button" class="button button-secondary" disabled>Refresh</button>
+              <button id="resetDevicesButton" type="button" class="button button-primary" disabled>Reset selected</button>
+            </div>
+          </div>
+
+          <div class="table-scroll">
+            <table class="data-table compact-table">
+              <thead>
+                <tr>
+                  <th>Pick</th>
+                  <th>Device</th>
+                  <th>Status</th>
+                  <th>Sessions</th>
+                  <th>Last user</th>
+                  <th>First seen</th>
+                  <th>Last seen</th>
+                  <th>HWID</th>
+                </tr>
+              </thead>
+              <tbody id="devicesTableBody"></tbody>
+            </table>
+          </div>
+        </article>
+
+        <article class="panel detail-panel">
+          <div class="section-head">
+            <div>
+              <p class="section-label">Instances</p>
+              <h2 id="instancesHeading">Instances</h2>
+              <p id="instancesSubheading" class="section-note">Open a license to inspect registered server instances.</p>
+            </div>
+            <div class="toolbar">
+              <button id="refreshInstancesButton" type="button" class="button button-secondary" disabled>Refresh</button>
+              <button id="resetInstancesButton" type="button" class="button button-primary" disabled>Reset selected</button>
+            </div>
+          </div>
+
+          <div class="table-scroll">
+            <table class="data-table compact-table">
+              <thead>
+                <tr>
+                  <th>Pick</th>
+                  <th>Instance</th>
+                  <th>Status</th>
+                  <th>Sessions</th>
+                  <th>Device</th>
+                  <th>Server</th>
+                  <th>First seen</th>
+                  <th>Last seen</th>
+                </tr>
+              </thead>
+              <tbody id="instancesTableBody"></tbody>
+            </table>
+          </div>
+        </article>
+      </section>
+    </div>
+  </div>
+
+  <div id="jarManagerModal" class="modal hidden" aria-hidden="true">
+    <div class="modal-panel panel wide-modal">
+      <div class="section-head">
+        <div>
+          <p class="section-label">Downloads</p>
+          <h2>Jar manager</h2>
+          <p class="section-note">Upload jars, edit release info and reorder what shows on the public site.</p>
+        </div>
+        <button id="closeJarManagerButton" type="button" class="button button-secondary">Close</button>
+      </div>
+
+      <section class="jar-grid modal-jar-grid">
+        <form id="jarUploadForm" class="panel jar-upload-card stack-form">
+          <div>
+            <label class="field-label" for="jarFileField">Jar file</label>
+            <input id="jarFileField" type="file" accept=".jar,application/java-archive,application/octet-stream" required>
+            <p class="field-help">Each upload stores the jar inside the private server folder.</p>
+          </div>
+
+          <div>
+            <label class="field-label" for="jarNameField">Public name</label>
+            <input id="jarNameField" type="text" autocomplete="off" spellcheck="false" placeholder="Nova 1.21.11 Build">
+          </div>
+
+          <div>
+            <label class="field-label" for="jarNoteField">Public note</label>
+            <textarea id="jarNoteField" rows="4" placeholder="Optional note shown in the public download list"></textarea>
+          </div>
+
+          <div>
+            <label class="field-label" for="jarVersionsField">Supported versions</label>
+            <input id="jarVersionsField" type="text" autocomplete="off" spellcheck="false" placeholder="1.13-1.21.11, 1.8 legacy">
+          </div>
+
+          <div>
+            <label class="field-label" for="jarChannelField">Release channel</label>
+            <select id="jarChannelField">
+              <option value="stable" selected>Stable</option>
+              <option value="beta">Beta</option>
+              <option value="legacy">Legacy</option>
+            </select>
+          </div>
+
+          <div>
+            <label class="field-label" for="jarChangelogField">Changelog</label>
+            <textarea id="jarChangelogField" rows="5" placeholder="What changed in this build?"></textarea>
+          </div>
+
+          <div>
+            <label class="field-label" for="jarAccessField">Download access</label>
+            <select id="jarAccessField">
+              <option value="buyers" selected>Buyers only</option>
+              <option value="public">Everybody</option>
+            </select>
+            <p class="field-help">Buyers only is the default. Public jars can be downloaded without a license.</p>
+          </div>
+
+          <label class="checkbox-row">
+            <input id="jarRecommendedField" type="checkbox">
+            <span>Mark as the latest recommended build</span>
+          </label>
+
+          <div class="actions-row">
+            <button id="uploadJarButton" type="submit" class="button button-primary">Upload jar</button>
+          </div>
+        </form>
+
+        <div class="jar-manager-card">
+          <div class="jar-manager-head">
+            <div>
+              <h3>Uploaded jars</h3>
+              <p class="section-note">Drag rows to reorder them. Open one when you want to edit the jar details.</p>
+            </div>
+            <span id="jarCountChip" class="jar-count-chip">0 jars</span>
+          </div>
+
+          <div id="jarList" class="jar-list"></div>
+        </div>
+      </section>
+    </div>
+  </div>
+
+  <div id="sessionsModal" class="modal hidden" aria-hidden="true">
+    <div class="modal-panel panel wide-modal">
+      <div class="section-head">
+        <div>
+          <p class="section-label">Sessions</p>
+          <h2>Recent sessions</h2>
+          <p class="section-note">Most recent activity across all licenses.</p>
+        </div>
+        <div class="toolbar">
+          <button id="refreshSessionsButton" type="button" class="button button-secondary">Refresh</button>
+          <button id="closeSessionsButton" type="button" class="button button-secondary">Close</button>
+        </div>
+      </div>
+
+      <div class="table-scroll">
+        <table class="data-table">
+          <thead>
+            <tr>
+              <th>License</th>
+              <th>Instance</th>
+              <th>Device</th>
+              <th>Server</th>
+              <th>Status</th>
+              <th>Heartbeat</th>
+              <th>Close reason</th>
+            </tr>
+          </thead>
+          <tbody id="sessionsTableBody"></tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+
+  <div id="auditModal" class="modal hidden" aria-hidden="true">
+    <div class="modal-panel panel wide-modal">
+      <div class="section-head">
+        <div>
+          <p class="section-label">Audit</p>
+          <h2>Audit logs</h2>
+          <p class="section-note">Filter plugin auth, resets, admin actions and lockdown changes.</p>
+        </div>
+        <div class="toolbar">
+          <button id="refreshAuditLogsButton" type="button" class="button button-secondary">Refresh</button>
+          <button id="closeAuditButton" type="button" class="button button-secondary">Close</button>
+        </div>
+      </div>
+
+      <div class="audit-filter-grid">
+        <input id="auditSearchField" class="search-input" type="search" placeholder="Search key, user, action or details">
+        <select id="auditActorField">
+          <option value="">All actors</option>
+        </select>
+        <select id="auditActionField">
+          <option value="">All actions</option>
+        </select>
+        <input id="auditLimitField" type="number" min="10" max="500" value="150">
+      </div>
+
+      <div class="table-scroll">
+        <table class="data-table">
+          <thead>
+            <tr>
+              <th>When</th>
+              <th>Actor</th>
+              <th>Action</th>
+              <th>License</th>
+              <th>Details</th>
+            </tr>
+          </thead>
+          <tbody id="auditLogsTableBody"></tbody>
+        </table>
+      </div>
+    </div>
   </div>
 
   <div id="downloadKeyModal" class="modal hidden" aria-hidden="true">

@@ -4,7 +4,6 @@ const state = {
   devices: [],
   instances: [],
   downloads: [],
-  manageDownloads: [],
   webhookEvents: [],
   downloadLicenseKey: "",
   downloadLicenseUser: "",
@@ -37,11 +36,18 @@ const elements = {
   resetCooldown: document.getElementById("resetCooldown"),
   webhookStatus: document.getElementById("webhookStatus"),
   deviceCountChip: document.getElementById("deviceCountChip"),
-  devicesList: document.getElementById("devicesList"),
   instanceCountChip: document.getElementById("instanceCountChip"),
+  openDeviceManagerButton: document.getElementById("openDeviceManagerButton"),
+  openInstanceViewerButton: document.getElementById("openInstanceViewerButton"),
+  openWebhookSettingsButton: document.getElementById("openWebhookSettingsButton"),
+  deviceManagerModal: document.getElementById("deviceManagerModal"),
+  closeDeviceManagerButton: document.getElementById("closeDeviceManagerButton"),
+  devicesList: document.getElementById("devicesList"),
+  instanceViewerModal: document.getElementById("instanceViewerModal"),
+  closeInstanceViewerButton: document.getElementById("closeInstanceViewerButton"),
   instancesList: document.getElementById("instancesList"),
-  manageDownloadCountChip: document.getElementById("manageDownloadCountChip"),
-  manageDownloadsList: document.getElementById("manageDownloadsList"),
+  webhookSettingsModal: document.getElementById("webhookSettingsModal"),
+  closeWebhookSettingsButton: document.getElementById("closeWebhookSettingsButton"),
   webhookCountChip: document.getElementById("webhookCountChip"),
   webhookForm: document.getElementById("webhookForm"),
   manageWebhookUrl: document.getElementById("manageWebhookUrl"),
@@ -175,6 +181,14 @@ function formatExpiry(license) {
   return license.expired ? `${base} (expired)` : base;
 }
 
+function cleanLabel(value, fallback = "Unknown") {
+  const text = String(value ?? "").trim();
+  if (!text || text === "." || text === "-") {
+    return fallback;
+  }
+  return text;
+}
+
 function formatMoney(value) {
   const amount = Number(value || 0);
   if (Number.isInteger(amount)) {
@@ -288,7 +302,7 @@ function renderDevices(devices) {
       <label class="device-check">
         <input class="device-selector" type="checkbox" value="${device.id}">
         <div>
-          <h5>${escapeHtml(device.deviceName || "Unknown Device")}</h5>
+          <h5>${escapeHtml(cleanLabel(device.deviceName, "Unknown Device"))}</h5>
           <div class="device-chip-row">
             <span class="device-chip">${device.online ? "Online" : "Offline"}</span>
             <span class="device-chip">${device.openSessionCount || 0} open session${device.openSessionCount === 1 ? "" : "s"}</span>
@@ -334,13 +348,13 @@ function renderInstances(instances) {
       ? "Online"
       : (instance.slotClaimed ? "Offline slot claimed" : (instance.active ? "Stored offline" : "Reset"));
     card.innerHTML = `
-      <h5>${escapeHtml(instance.instanceName || "Unknown instance")}</h5>
+      <h5>${escapeHtml(cleanLabel(instance.instanceName, "Unknown instance"))}</h5>
       <div class="device-chip-row">
         <span class="device-chip">${escapeHtml(status)}</span>
-        <span class="device-chip">${escapeHtml(instance.lastServerName || "Unknown server")}</span>
+        <span class="device-chip">${escapeHtml(cleanLabel(instance.lastServerName, "Unknown server"))}</span>
       </div>
       <p class="instance-meta">
-        Device: ${escapeHtml(instance.deviceName || "Unknown device")}<br>
+        Device: ${escapeHtml(cleanLabel(instance.deviceName, "Unknown device"))}<br>
         First seen: ${escapeHtml(formatDate(instance.firstSeenAt))}<br>
         Last seen: ${escapeHtml(formatDate(instance.lastSeenAt))}<br>
         Instance: ${escapeHtml(instance.instanceUuid || instance.instanceHash || "-")}
@@ -350,32 +364,6 @@ function renderInstances(instances) {
   }
 
   elements.instancesList.appendChild(fragment);
-}
-
-function renderManageDownloads(jars) {
-  state.manageDownloads = Array.isArray(jars) ? jars : [];
-  if (!elements.manageDownloadsList || !elements.manageDownloadCountChip) {
-    return;
-  }
-
-  elements.manageDownloadsList.innerHTML = "";
-  elements.manageDownloadCountChip.textContent = `${state.manageDownloads.length} build${state.manageDownloads.length === 1 ? "" : "s"}`;
-
-  if (state.manageDownloads.length === 0) {
-    elements.manageDownloadsList.innerHTML = `<div class="download-empty">No downloads are available for this license right now.</div>`;
-    return;
-  }
-
-  const fragment = document.createDocumentFragment();
-  for (const jar of state.manageDownloads) {
-    const card = document.createElement("article");
-    card.className = "download-card";
-    card.innerHTML = buildDownloadCardHtml(jar, "data-manage-download-jar-id");
-    fragment.appendChild(card);
-  }
-
-  elements.manageDownloadsList.appendChild(fragment);
-  updateDownloadCooldownUi();
 }
 
 function renderWebhookSettings(webhook, definitions) {
@@ -425,14 +413,19 @@ function renderLookupResult(payload) {
     : "Ready now";
   state.downloadLicenseUser = license.customerUsername || state.licenseUser;
   state.downloadLicenseKey = license.key || state.licenseKey;
+  elements.openDeviceManagerButton.disabled = false;
+  elements.openInstanceViewerButton.disabled = false;
+  elements.openWebhookSettingsButton.disabled = false;
   renderDevices(payload.devices || []);
   renderInstances(payload.instances || []);
-  renderManageDownloads(payload.downloads || []);
   renderWebhookSettings(payload.webhook || {}, payload.webhookEvents || []);
 }
 
 function clearResult() {
   elements.lookupResult.classList.add("hidden");
+  closeModal(elements.deviceManagerModal);
+  closeModal(elements.instanceViewerModal);
+  closeModal(elements.webhookSettingsModal);
   elements.devicesList.innerHTML = "";
   elements.licenseDisplayName.textContent = "-";
   elements.licenseUser.textContent = "-";
@@ -448,9 +441,6 @@ function clearResult() {
   if (elements.instancesList) {
     elements.instancesList.innerHTML = "";
   }
-  if (elements.manageDownloadsList) {
-    elements.manageDownloadsList.innerHTML = "";
-  }
   if (elements.manageWebhookEvents) {
     elements.manageWebhookEvents.innerHTML = "";
   }
@@ -459,18 +449,23 @@ function clearResult() {
   }
   state.devices = [];
   state.instances = [];
-  state.manageDownloads = [];
   state.webhookEvents = [];
   state.downloadLicenseKey = "";
   state.downloadLicenseUser = "";
+  if (elements.openDeviceManagerButton) {
+    elements.openDeviceManagerButton.disabled = true;
+  }
+  if (elements.openInstanceViewerButton) {
+    elements.openInstanceViewerButton.disabled = true;
+  }
+  if (elements.openWebhookSettingsButton) {
+    elements.openWebhookSettingsButton.disabled = true;
+  }
   if (elements.deviceCountChip) {
     elements.deviceCountChip.textContent = "0 devices";
   }
   if (elements.instanceCountChip) {
     elements.instanceCountChip.textContent = "0 instances";
-  }
-  if (elements.manageDownloadCountChip) {
-    elements.manageDownloadCountChip.textContent = "0 builds";
   }
   if (elements.webhookCountChip) {
     elements.webhookCountChip.textContent = "0 alerts";
@@ -524,7 +519,7 @@ async function lookupLicense(event) {
   try {
     const payload = await postJson("/api/manage/lookup", { licenseKey, username: licenseUser });
     renderLookupResult(payload);
-    showStatus("License loaded. You can now manage resets, downloads and webhook alerts.", "success");
+    showStatus("License loaded. You can now manage resets, instances and webhook alerts.", "success");
   } catch (error) {
     showStatus(error.message, "error");
   } finally {
@@ -630,6 +625,36 @@ async function clearWebhook() {
   }
 }
 
+function openDeviceManagerModal() {
+  if (!state.licenseKey) {
+    showStatus("Run a license lookup first.", "error");
+    return;
+  }
+  closeModal(elements.instanceViewerModal);
+  closeModal(elements.webhookSettingsModal);
+  openModal(elements.deviceManagerModal);
+}
+
+function openInstanceViewerModal() {
+  if (!state.licenseKey) {
+    showStatus("Run a license lookup first.", "error");
+    return;
+  }
+  closeModal(elements.deviceManagerModal);
+  closeModal(elements.webhookSettingsModal);
+  openModal(elements.instanceViewerModal);
+}
+
+function openWebhookSettingsModal() {
+  if (!state.licenseKey) {
+    showStatus("Run a license lookup first.", "error");
+    return;
+  }
+  closeModal(elements.deviceManagerModal);
+  closeModal(elements.instanceViewerModal);
+  openModal(elements.webhookSettingsModal);
+}
+
 function openModal(modal) {
   if (!modal) {
     return;
@@ -716,7 +741,7 @@ function updateDownloadCooldownUi() {
     elements.downloadsCooldown.textContent = "";
   }
 
-  document.querySelectorAll("[data-download-jar-id], [data-manage-download-jar-id]").forEach((button) => {
+  document.querySelectorAll("[data-download-jar-id]").forEach((button) => {
     const isCoolingDown = remaining > 0;
     button.disabled = isCoolingDown;
     if (!button.dataset.defaultLabel) {
@@ -926,20 +951,6 @@ function handleDownloadsClick(event) {
   }
 
   downloadJar(jarId, button, state.downloads);
-}
-
-function handleManageDownloadsClick(event) {
-  const button = event.target.closest("button[data-manage-download-jar-id]");
-  if (!button) {
-    return;
-  }
-
-  const jarId = Number.parseInt(button.dataset.manageDownloadJarId || "", 10);
-  if (!Number.isFinite(jarId)) {
-    return;
-  }
-
-  downloadJar(jarId, button, state.manageDownloads);
 }
 
 async function submitDownloadAccess(event) {
@@ -1185,6 +1196,12 @@ elements.mobileMenuButton?.addEventListener("click", toggleMobileMenu);
 elements.closeMobileMenuButton?.addEventListener("click", closeMobileMenu);
 elements.mobileNavOverlay?.addEventListener("click", closeMobileMenu);
 elements.lookupForm.addEventListener("submit", lookupLicense);
+elements.openDeviceManagerButton?.addEventListener("click", openDeviceManagerModal);
+elements.openInstanceViewerButton?.addEventListener("click", openInstanceViewerModal);
+elements.openWebhookSettingsButton?.addEventListener("click", openWebhookSettingsModal);
+elements.closeDeviceManagerButton?.addEventListener("click", () => closeModal(elements.deviceManagerModal));
+elements.closeInstanceViewerButton?.addEventListener("click", () => closeModal(elements.instanceViewerModal));
+elements.closeWebhookSettingsButton?.addEventListener("click", () => closeModal(elements.webhookSettingsModal));
 elements.webhookForm?.addEventListener("submit", (event) => {
   saveWebhook(event).catch((error) => {
     showStatus(error.message, "error");
@@ -1208,7 +1225,6 @@ elements.openDownloadsButton?.addEventListener("click", () => {
 });
 elements.closeDownloadsButton?.addEventListener("click", closeDownloadsModal);
 elements.downloadsList?.addEventListener("click", handleDownloadsClick);
-elements.manageDownloadsList?.addEventListener("click", handleManageDownloadsClick);
 elements.downloadAccessForm?.addEventListener("submit", (event) => {
   submitDownloadAccess(event).catch((error) => {
     showDownloadStatus(error.message, "error");
@@ -1232,6 +1248,17 @@ elements.versionsModal?.addEventListener("click", (event) => {
     closeVersionsModal();
   }
 });
+[
+  elements.deviceManagerModal,
+  elements.instanceViewerModal,
+  elements.webhookSettingsModal
+].forEach((modal) => {
+  modal?.addEventListener("click", (event) => {
+    if (event.target === modal) {
+      closeModal(modal);
+    }
+  });
+});
 document.addEventListener("keydown", (event) => {
   if (event.key !== "Escape") {
     return;
@@ -1247,6 +1274,15 @@ document.addEventListener("keydown", (event) => {
   if (elements.versionsModal && !elements.versionsModal.classList.contains("hidden")) {
     closeVersionsModal();
   }
+  [
+    elements.deviceManagerModal,
+    elements.instanceViewerModal,
+    elements.webhookSettingsModal
+  ].forEach((modal) => {
+    if (modal && !modal.classList.contains("hidden")) {
+      closeModal(modal);
+    }
+  });
 });
 window.addEventListener("resize", () => {
   if (window.innerWidth > 780) {

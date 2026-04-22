@@ -972,6 +972,10 @@ textarea {
   margin-bottom: 18px;
 }
 
+.manage-summary-grid {
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+}
+
 .license-meta > div,
 .small-chip {
   padding: 14px;
@@ -1006,6 +1010,58 @@ textarea {
 .manage-card {
   display: grid;
   gap: 14px;
+}
+
+.manage-action-grid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 14px;
+  margin-top: 12px;
+}
+
+.manage-action-card {
+  display: grid;
+  gap: 10px;
+  align-content: start;
+  width: 100%;
+  min-height: 172px;
+  padding: 18px;
+  border: 1px solid var(--border-soft);
+  border-radius: 16px;
+  background: linear-gradient(180deg, rgba(42, 22, 63, 0.82), rgba(29, 15, 44, 0.96));
+  color: var(--text);
+  text-align: left;
+  cursor: pointer;
+  transition: transform 0.16s ease, border-color 0.16s ease, box-shadow 0.16s ease;
+}
+
+.manage-action-card:hover,
+.manage-action-card:focus-visible {
+  border-color: rgba(157, 92, 255, 0.5);
+  box-shadow: 0 14px 32px rgba(0, 0, 0, 0.24);
+  transform: translateY(-2px);
+}
+
+.manage-action-card:disabled {
+  opacity: 0.58;
+  cursor: not-allowed;
+  box-shadow: none;
+  transform: none;
+}
+
+.manage-action-card strong {
+  font-family: "Space Grotesk", sans-serif;
+  font-size: 1.1rem;
+}
+
+.manage-action-card small {
+  color: var(--muted);
+  line-height: 1.55;
+}
+
+.manage-action-card .small-chip {
+  margin-top: auto;
+  justify-self: start;
 }
 
 .instance-list,
@@ -1327,6 +1383,7 @@ textarea {
   .license-meta,
   .devices-grid,
   .manage-grid,
+  .manage-action-grid,
   .calculator-grid,
   .calculator-results,
   .checks-preview-grid,
@@ -1339,6 +1396,10 @@ textarea {
 
   .check-list {
     columns: 1;
+  }
+
+  .manage-summary-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
   }
 }
 
@@ -1401,5 +1462,13 @@ textarea {
   .download-card-head {
     flex-direction: column;
     align-items: stretch;
+  }
+
+  .manage-action-card {
+    min-height: 0;
+  }
+
+  .manage-summary-grid {
+    grid-template-columns: 1fr;
   }
 }
