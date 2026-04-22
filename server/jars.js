@@ -158,6 +158,7 @@ function serializePublicJar(row) {
     recommended: jar.recommended,
     originalName: jar.originalName,
     fileSize: jar.fileSize,
+    createdAt: jar.createdAt,
     updatedAt: jar.updatedAt,
     downloadName: jar.downloadName
   };

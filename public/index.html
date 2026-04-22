@@ -287,7 +287,7 @@
               <strong id="licenseSlots">-</strong>
             </div>
             <div>
-              <span class="meta-label">Cooldown</span>
+              <span class="meta-label">Reset cooldown</span>
               <strong id="resetCooldown">Ready</strong>
             </div>
             <div>
@@ -316,6 +316,13 @@
               <strong>Discord alerts</strong>
               <small>Choose which events should be sent to your webhook.</small>
               <span id="webhookCountChip" class="small-chip">0 alerts</span>
+            </button>
+
+            <button id="openSecurityModalButton" type="button" class="manage-action-card" disabled>
+              <span class="section-pill">Security</span>
+              <strong>License security</strong>
+              <small>Revoke devices, clear instances and review recent auth attempts.</small>
+              <span id="authAttemptCountChip" class="small-chip">0 attempts</span>
             </button>
           </div>
         </section>
@@ -400,9 +407,48 @@
 
         <div class="actions-row">
           <button id="saveWebhookButton" type="submit" class="button button-primary">Save webhook</button>
+          <button id="sendTestWebhookButton" type="button" class="button button-secondary">Send test alert</button>
           <button id="clearWebhookButton" type="button" class="button button-secondary">Clear webhook</button>
         </div>
       </form>
+    </div>
+  </div>
+
+  <div id="securityModal" class="modal hidden" aria-hidden="true">
+    <div class="modal-panel panel security-modal-panel">
+      <div class="downloads-head">
+        <div>
+          <p class="section-pill">Manage License</p>
+          <h3>License security</h3>
+          <p class="section-copy">Use these controls if you think the key was shared, leaked or connected from the wrong server.</p>
+        </div>
+        <button id="closeSecurityModalButton" type="button" class="button button-secondary">Close</button>
+      </div>
+
+      <div class="security-panel-grid">
+        <article class="security-card">
+          <p class="section-pill">Actions</p>
+          <h4>Lock down this license</h4>
+          <p class="security-copy">Revoke every stored device or instance tied to this license from one place.</p>
+
+          <div class="security-actions">
+            <button id="revokeAllDevicesButton" type="button" class="button button-primary">Revoke all devices</button>
+            <button id="revokeAllInstancesButton" type="button" class="button button-secondary">Revoke all instances</button>
+          </div>
+
+          <p class="security-note">Device revokes use the normal reset cooldown. Instance revokes clear the stored server identities for this license.</p>
+        </article>
+
+        <article class="security-card">
+          <div class="security-card-head">
+            <div>
+              <p class="section-pill">Audit</p>
+              <h4>Last auth attempts</h4>
+            </div>
+          </div>
+          <div id="authAttemptsList" class="auth-attempt-list"></div>
+        </article>
+      </div>
     </div>
   </div>
 

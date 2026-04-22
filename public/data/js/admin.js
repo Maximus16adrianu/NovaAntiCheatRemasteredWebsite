@@ -236,6 +236,47 @@ function cleanLabel(value, fallback = "Unknown") {
   return text;
 }
 
+function getMeaningfulLabel(value) {
+  const text = String(value ?? "").trim();
+  if (!text || text === "." || text === "-") {
+    return "";
+  }
+  return text;
+}
+
+function getInstanceDisplayName(instance) {
+  const label = getMeaningfulLabel(instance?.instanceName);
+  if (label) {
+    return label;
+  }
+
+  const port = instance?.fingerprint?.normalized?.serverPort;
+  if (port) {
+    return `Instance on :${port}`;
+  }
+
+  const instanceUuid = getMeaningfulLabel(instance?.instanceUuid);
+  if (instanceUuid) {
+    return `Instance ${instanceUuid.slice(0, 8)}`;
+  }
+
+  return "Stored instance";
+}
+
+function getServerDisplayName(instance) {
+  const label = getMeaningfulLabel(instance?.lastServerName);
+  if (label) {
+    return label;
+  }
+
+  const port = instance?.fingerprint?.normalized?.serverPort;
+  if (port) {
+    return `Port ${port}`;
+  }
+
+  return "Server unknown";
+}
+
 function badge(label, tone = "") {
   const className = tone ? `badge ${tone}` : "badge";
   return `<span class="${className}">${esc(label)}</span>`;
@@ -277,16 +318,10 @@ function getExtendLabel(license) {
 }
 
 function buildInstanceStateBadge(instance) {
-  if (!instance.active) {
-    return badge("Reset", "warning");
-  }
   if (instance.online) {
     return badge("Online", "success");
   }
-  if (instance.slotClaimed) {
-    return badge("Offline slot", "warning");
-  }
-  return badge("Stored", "");
+  return badge("Offline", "");
 }
 
 function formatAuditDetails(details) {
@@ -559,13 +594,13 @@ function renderInstances(instances) {
     row.innerHTML = `
       <td class="pick-cell"><input class="instance-selector" type="checkbox" value="${instance.id}"></td>
       <td>
-        <strong>${esc(cleanLabel(instance.instanceName, "Unknown instance"))}</strong>
+        <strong>${esc(getInstanceDisplayName(instance))}</strong>
         <small>${esc(instance.instanceUuid || instance.instanceHash || "")}</small>
       </td>
       <td>${buildInstanceStateBadge(instance)}</td>
       <td>${esc(String(instance.openSessionCount || 0))}</td>
       <td>${esc(cleanLabel(instance.deviceName, "Unknown device"))}</td>
-      <td>${esc(cleanLabel(instance.lastServerName, "Unknown server"))}</td>
+      <td>${esc(getServerDisplayName(instance))}</td>
       <td>${esc(formatDate(instance.firstSeenAt))}</td>
       <td>${esc(formatDate(instance.lastSeenAt))}</td>
     `;

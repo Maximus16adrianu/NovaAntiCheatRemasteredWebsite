@@ -3,6 +3,7 @@ const state = {
   licenseUser: "",
   devices: [],
   instances: [],
+  authAttempts: [],
   downloads: [],
   webhookEvents: [],
   downloadLicenseKey: "",
@@ -53,7 +54,15 @@ const elements = {
   manageWebhookUrl: document.getElementById("manageWebhookUrl"),
   manageWebhookEvents: document.getElementById("manageWebhookEvents"),
   saveWebhookButton: document.getElementById("saveWebhookButton"),
+  sendTestWebhookButton: document.getElementById("sendTestWebhookButton"),
   clearWebhookButton: document.getElementById("clearWebhookButton"),
+  openSecurityModalButton: document.getElementById("openSecurityModalButton"),
+  securityModal: document.getElementById("securityModal"),
+  closeSecurityModalButton: document.getElementById("closeSecurityModalButton"),
+  revokeAllDevicesButton: document.getElementById("revokeAllDevicesButton"),
+  revokeAllInstancesButton: document.getElementById("revokeAllInstancesButton"),
+  authAttemptCountChip: document.getElementById("authAttemptCountChip"),
+  authAttemptsList: document.getElementById("authAttemptsList"),
   submitResetButton: document.getElementById("submitResetButton"),
   clearSelectionButton: document.getElementById("clearSelectionButton"),
   calcSlots: document.getElementById("calcSlots"),
@@ -189,6 +198,47 @@ function cleanLabel(value, fallback = "Unknown") {
   return text;
 }
 
+function getMeaningfulLabel(value) {
+  const text = String(value ?? "").trim();
+  if (!text || text === "." || text === "-") {
+    return "";
+  }
+  return text;
+}
+
+function getInstanceCardTitle(instance) {
+  const label = getMeaningfulLabel(instance?.instanceName);
+  if (label) {
+    return label;
+  }
+
+  const port = instance?.fingerprint?.normalized?.serverPort;
+  if (port) {
+    return `Instance on :${port}`;
+  }
+
+  const instanceUuid = getMeaningfulLabel(instance?.instanceUuid);
+  if (instanceUuid) {
+    return `Instance ${instanceUuid.slice(0, 8)}`;
+  }
+
+  return "Stored instance";
+}
+
+function getInstanceServerBadge(instance) {
+  const label = getMeaningfulLabel(instance?.lastServerName);
+  if (label) {
+    return label;
+  }
+
+  const port = instance?.fingerprint?.normalized?.serverPort;
+  if (port) {
+    return `Port ${port}`;
+  }
+
+  return "Server unknown";
+}
+
 function formatMoney(value) {
   const amount = Number(value || 0);
   if (Number.isInteger(amount)) {
@@ -258,6 +308,7 @@ function buildDownloadCardHtml(jar, buttonAttributeName = "data-download-jar-id"
           ${getChannelBadge(jar)}
           ${getDownloadAccessBadge(jar)}
           ${jar.supportedVersions ? `<span class="download-badge subtle">${escapeHtml(jar.supportedVersions)}</span>` : ""}
+          ${jar.createdAt ? `<span class="download-badge subtle">Published ${escapeHtml(formatDate(jar.createdAt))}</span>` : ""}
           <span class="download-badge subtle">${escapeHtml(jar.originalName || jar.downloadName || "jar")}</span>
           <span class="download-badge subtle">${escapeHtml(formatBytes(jar.fileSize || 0))}</span>
           <span class="download-badge subtle">Updated ${escapeHtml(formatDate(jar.updatedAt))}</span>
@@ -311,7 +362,7 @@ function renderDevices(devices) {
             Last username: ${escapeHtml(device.lastUsername || "unknown")}<br>
             First seen: ${escapeHtml(formatDate(device.firstSeenAt))}<br>
             Last seen: ${escapeHtml(formatDate(device.lastSeenAt))}<br>
-            HWID: ${escapeHtml(device.hwidHash)}
+            HWID: <span class="mono-wrap">${escapeHtml(device.hwidHash)}</span>
           </p>
         </div>
       </label>
@@ -344,20 +395,18 @@ function renderInstances(instances) {
   for (const instance of state.instances) {
     const card = document.createElement("article");
     card.className = "instance-card";
-    const status = instance.online
-      ? "Online"
-      : (instance.slotClaimed ? "Offline slot claimed" : (instance.active ? "Stored offline" : "Reset"));
+    const status = instance.online ? "Online" : "Offline";
     card.innerHTML = `
-      <h5>${escapeHtml(cleanLabel(instance.instanceName, "Unknown instance"))}</h5>
+      <h5>${escapeHtml(getInstanceCardTitle(instance))}</h5>
       <div class="device-chip-row">
         <span class="device-chip">${escapeHtml(status)}</span>
-        <span class="device-chip">${escapeHtml(cleanLabel(instance.lastServerName, "Unknown server"))}</span>
+        <span class="device-chip">${escapeHtml(getInstanceServerBadge(instance))}</span>
       </div>
       <p class="instance-meta">
         Device: ${escapeHtml(cleanLabel(instance.deviceName, "Unknown device"))}<br>
         First seen: ${escapeHtml(formatDate(instance.firstSeenAt))}<br>
         Last seen: ${escapeHtml(formatDate(instance.lastSeenAt))}<br>
-        Instance: ${escapeHtml(instance.instanceUuid || instance.instanceHash || "-")}
+        Instance: <span class="mono-wrap">${escapeHtml(instance.instanceUuid || instance.instanceHash || "-")}</span>
       </p>
     `;
     fragment.appendChild(card);
@@ -401,6 +450,117 @@ function renderWebhookSettings(webhook, definitions) {
   elements.manageWebhookEvents.appendChild(fragment);
 }
 
+function getAuthAttemptStatus(entry) {
+  return entry?.action === "license_activated" ? "allowed" : "denied";
+}
+
+function getAuthAttemptTitle(entry) {
+  switch (entry?.action) {
+    case "license_activated":
+      return "Activation allowed";
+    case "auth_denied_license_disabled":
+      return "License disabled";
+    case "auth_denied_license_expired":
+      return "License expired";
+    case "auth_denied_username_mismatch":
+      return "Username mismatch";
+    case "hwid_limit_denied":
+      return "HWID limit denied";
+    case "instance_limit_denied":
+      return "Instance limit denied";
+    case "heartbeat_denied_license_missing":
+      return "Heartbeat denied";
+    case "heartbeat_denied_license_disabled":
+      return "Heartbeat blocked";
+    case "heartbeat_denied_license_expired":
+      return "Heartbeat expired";
+    default:
+      return "Auth attempt";
+  }
+}
+
+function getAuthAttemptSummary(entry) {
+  const details = entry?.details || {};
+  switch (entry?.action) {
+    case "license_activated":
+      return `${cleanLabel(details.instanceName || details.deviceName, "A server")} authenticated successfully.`;
+    case "auth_denied_license_disabled":
+      return "A plugin tried to authenticate while this license was disabled.";
+    case "auth_denied_license_expired":
+      return "A plugin tried to authenticate after the license had expired.";
+    case "auth_denied_username_mismatch":
+      return details.providedUsername
+        ? `A plugin used the wrong username: ${details.providedUsername}.`
+        : "A plugin used a username that does not match this license.";
+    case "hwid_limit_denied":
+      return `${details.activeDeviceCount ?? "?"}/${details.maxHwids ?? "?"} device slots were already in use.`;
+    case "instance_limit_denied":
+      return `${details.activeInstanceCount ?? "?"}/${details.maxInstances ?? "?"} instance slots were already in use.`;
+    case "heartbeat_denied_license_missing":
+      return "A heartbeat reached the backend after the session or license was no longer valid.";
+    case "heartbeat_denied_license_disabled":
+      return "A heartbeat was rejected because the license had been disabled.";
+    case "heartbeat_denied_license_expired":
+      return "A heartbeat was rejected because the license had expired.";
+    default:
+      return "Recent authentication activity for this license.";
+  }
+}
+
+function renderAuthAttempts(attempts) {
+  state.authAttempts = Array.isArray(attempts) ? attempts : [];
+  if (!elements.authAttemptsList || !elements.authAttemptCountChip) {
+    return;
+  }
+
+  elements.authAttemptCountChip.textContent = `${state.authAttempts.length} attempt${state.authAttempts.length === 1 ? "" : "s"}`;
+  elements.authAttemptsList.innerHTML = "";
+
+  if (state.authAttempts.length === 0) {
+    elements.authAttemptsList.innerHTML = `<div class="download-empty"><strong>No recent auth attempts yet.</strong><p>Recent activations and denied auth events will show up here.</p></div>`;
+    return;
+  }
+
+  const fragment = document.createDocumentFragment();
+  for (const entry of state.authAttempts) {
+    const status = getAuthAttemptStatus(entry);
+    const details = entry?.details || {};
+    const card = document.createElement("article");
+    card.className = "auth-attempt-card";
+
+    const chips = [];
+    const deviceName = cleanLabel(entry.deviceName || details.deviceName, "");
+    const serverName = cleanLabel(details.serverName, "");
+    if (deviceName) {
+      chips.push(`<span class="device-chip">${escapeHtml(deviceName)}</span>`);
+    }
+    if (serverName) {
+      chips.push(`<span class="device-chip">${escapeHtml(serverName)}</span>`);
+    }
+    if (details.providedUsername) {
+      chips.push(`<span class="device-chip">User ${escapeHtml(details.providedUsername)}</span>`);
+    }
+
+    card.innerHTML = `
+      <div class="auth-attempt-head">
+        <div>
+          <h5>${escapeHtml(getAuthAttemptTitle(entry))}</h5>
+          <p>${escapeHtml(getAuthAttemptSummary(entry))}</p>
+        </div>
+        <div class="auth-attempt-meta">
+          <span class="auth-attempt-chip ${status === "allowed" ? "success" : "danger"}">${status === "allowed" ? "Allowed" : "Denied"}</span>
+          <span class="device-chip">${escapeHtml(formatDate(entry.createdAt))}</span>
+        </div>
+      </div>
+      ${chips.length ? `<div class="device-chip-row">${chips.join("")}</div>` : ""}
+    `;
+
+    fragment.appendChild(card);
+  }
+
+  elements.authAttemptsList.appendChild(fragment);
+}
+
 function renderLookupResult(payload) {
   const license = payload.license || {};
   elements.lookupResult.classList.remove("hidden");
@@ -416,9 +576,13 @@ function renderLookupResult(payload) {
   elements.openDeviceManagerButton.disabled = false;
   elements.openInstanceViewerButton.disabled = false;
   elements.openWebhookSettingsButton.disabled = false;
+  if (elements.openSecurityModalButton) {
+    elements.openSecurityModalButton.disabled = false;
+  }
   renderDevices(payload.devices || []);
   renderInstances(payload.instances || []);
   renderWebhookSettings(payload.webhook || {}, payload.webhookEvents || []);
+  renderAuthAttempts(payload.recentAuthAttempts || []);
 }
 
 function clearResult() {
@@ -426,6 +590,7 @@ function clearResult() {
   closeModal(elements.deviceManagerModal);
   closeModal(elements.instanceViewerModal);
   closeModal(elements.webhookSettingsModal);
+  closeModal(elements.securityModal);
   elements.devicesList.innerHTML = "";
   elements.licenseDisplayName.textContent = "-";
   elements.licenseUser.textContent = "-";
@@ -441,6 +606,9 @@ function clearResult() {
   if (elements.instancesList) {
     elements.instancesList.innerHTML = "";
   }
+  if (elements.authAttemptsList) {
+    elements.authAttemptsList.innerHTML = "";
+  }
   if (elements.manageWebhookEvents) {
     elements.manageWebhookEvents.innerHTML = "";
   }
@@ -449,6 +617,7 @@ function clearResult() {
   }
   state.devices = [];
   state.instances = [];
+  state.authAttempts = [];
   state.webhookEvents = [];
   state.downloadLicenseKey = "";
   state.downloadLicenseUser = "";
@@ -461,6 +630,9 @@ function clearResult() {
   if (elements.openWebhookSettingsButton) {
     elements.openWebhookSettingsButton.disabled = true;
   }
+  if (elements.openSecurityModalButton) {
+    elements.openSecurityModalButton.disabled = true;
+  }
   if (elements.deviceCountChip) {
     elements.deviceCountChip.textContent = "0 devices";
   }
@@ -469,6 +641,9 @@ function clearResult() {
   }
   if (elements.webhookCountChip) {
     elements.webhookCountChip.textContent = "0 alerts";
+  }
+  if (elements.authAttemptCountChip) {
+    elements.authAttemptCountChip.textContent = "0 attempts";
   }
   updateActionState();
 }
@@ -519,7 +694,7 @@ async function lookupLicense(event) {
   try {
     const payload = await postJson("/api/manage/lookup", { licenseKey, username: licenseUser });
     renderLookupResult(payload);
-    showStatus("License loaded. You can now manage resets, instances and webhook alerts.", "success");
+    showStatus("License loaded. You can now manage resets, security, instances and webhook alerts.", "success");
   } catch (error) {
     showStatus(error.message, "error");
   } finally {
@@ -625,6 +800,34 @@ async function clearWebhook() {
   }
 }
 
+async function sendTestWebhook() {
+  clearStatus();
+
+  if (!state.licenseKey || !state.licenseUser) {
+    showStatus("Run a license lookup first.", "error");
+    return;
+  }
+
+  if (!elements.manageWebhookUrl.value.trim()) {
+    showStatus("Enter a Discord webhook URL first.", "error");
+    return;
+  }
+
+  setBusy(elements.sendTestWebhookButton, true, "Sending...");
+  try {
+    const payload = await postJson("/api/manage/webhook/test", {
+      licenseKey: state.licenseKey,
+      username: state.licenseUser,
+      webhookUrl: elements.manageWebhookUrl.value.trim()
+    });
+    showStatus(payload.message || "Test alert sent successfully.", "success");
+  } catch (error) {
+    showStatus(error.message, "error");
+  } finally {
+    setBusy(elements.sendTestWebhookButton, false, "Sending...");
+  }
+}
+
 function openDeviceManagerModal() {
   if (!state.licenseKey) {
     showStatus("Run a license lookup first.", "error");
@@ -632,6 +835,7 @@ function openDeviceManagerModal() {
   }
   closeModal(elements.instanceViewerModal);
   closeModal(elements.webhookSettingsModal);
+  closeModal(elements.securityModal);
   openModal(elements.deviceManagerModal);
 }
 
@@ -642,6 +846,7 @@ function openInstanceViewerModal() {
   }
   closeModal(elements.deviceManagerModal);
   closeModal(elements.webhookSettingsModal);
+  closeModal(elements.securityModal);
   openModal(elements.instanceViewerModal);
 }
 
@@ -652,7 +857,70 @@ function openWebhookSettingsModal() {
   }
   closeModal(elements.deviceManagerModal);
   closeModal(elements.instanceViewerModal);
+  closeModal(elements.securityModal);
   openModal(elements.webhookSettingsModal);
+}
+
+function openSecurityModal() {
+  if (!state.licenseKey) {
+    showStatus("Run a license lookup first.", "error");
+    return;
+  }
+
+  closeModal(elements.deviceManagerModal);
+  closeModal(elements.instanceViewerModal);
+  closeModal(elements.webhookSettingsModal);
+  openModal(elements.securityModal);
+}
+
+async function revokeAllDevices() {
+  clearStatus();
+  if (!state.licenseKey || !state.licenseUser) {
+    showStatus("Run a license lookup first.", "error");
+    return;
+  }
+  if (!window.confirm("Revoke every registered device on this license?")) {
+    return;
+  }
+
+  setBusy(elements.revokeAllDevicesButton, true, "Revoking...");
+  try {
+    const payload = await postJson("/api/manage/revoke-devices", {
+      licenseKey: state.licenseKey,
+      username: state.licenseUser
+    });
+    renderLookupResult(payload);
+    showStatus(payload.message || "All registered devices were revoked.", "success");
+  } catch (error) {
+    showStatus(error.message, "error");
+  } finally {
+    setBusy(elements.revokeAllDevicesButton, false, "Revoking...");
+  }
+}
+
+async function revokeAllInstances() {
+  clearStatus();
+  if (!state.licenseKey || !state.licenseUser) {
+    showStatus("Run a license lookup first.", "error");
+    return;
+  }
+  if (!window.confirm("Revoke every stored instance on this license?")) {
+    return;
+  }
+
+  setBusy(elements.revokeAllInstancesButton, true, "Revoking...");
+  try {
+    const payload = await postJson("/api/manage/revoke-instances", {
+      licenseKey: state.licenseKey,
+      username: state.licenseUser
+    });
+    renderLookupResult(payload);
+    showStatus(payload.message || "All stored instances were revoked.", "success");
+  } catch (error) {
+    showStatus(error.message, "error");
+  } finally {
+    setBusy(elements.revokeAllInstancesButton, false, "Revoking...");
+  }
 }
 
 function openModal(modal) {
@@ -789,7 +1057,10 @@ function renderDownloads(jars) {
 
   elements.downloadsList.innerHTML = "";
   if (state.downloads.length === 0) {
-    elements.downloadsList.innerHTML = `<div class="download-empty">No jars are available right now.</div>`;
+    const emptyTitle = state.downloadLicenseKey
+      ? "No builds are currently published for this license."
+      : "No builds are currently published right now.";
+    elements.downloadsList.innerHTML = `<div class="download-empty"><strong>${escapeHtml(emptyTitle)}</strong><p>If you think this is wrong, contact support.</p></div>`;
     updateDownloadCooldownUi();
     return;
   }
@@ -1199,16 +1470,33 @@ elements.lookupForm.addEventListener("submit", lookupLicense);
 elements.openDeviceManagerButton?.addEventListener("click", openDeviceManagerModal);
 elements.openInstanceViewerButton?.addEventListener("click", openInstanceViewerModal);
 elements.openWebhookSettingsButton?.addEventListener("click", openWebhookSettingsModal);
+elements.openSecurityModalButton?.addEventListener("click", openSecurityModal);
 elements.closeDeviceManagerButton?.addEventListener("click", () => closeModal(elements.deviceManagerModal));
 elements.closeInstanceViewerButton?.addEventListener("click", () => closeModal(elements.instanceViewerModal));
 elements.closeWebhookSettingsButton?.addEventListener("click", () => closeModal(elements.webhookSettingsModal));
+elements.closeSecurityModalButton?.addEventListener("click", () => closeModal(elements.securityModal));
 elements.webhookForm?.addEventListener("submit", (event) => {
   saveWebhook(event).catch((error) => {
     showStatus(error.message, "error");
   });
 });
+elements.sendTestWebhookButton?.addEventListener("click", () => {
+  sendTestWebhook().catch((error) => {
+    showStatus(error.message, "error");
+  });
+});
 elements.clearWebhookButton?.addEventListener("click", () => {
   clearWebhook().catch((error) => {
+    showStatus(error.message, "error");
+  });
+});
+elements.revokeAllDevicesButton?.addEventListener("click", () => {
+  revokeAllDevices().catch((error) => {
+    showStatus(error.message, "error");
+  });
+});
+elements.revokeAllInstancesButton?.addEventListener("click", () => {
+  revokeAllInstances().catch((error) => {
     showStatus(error.message, "error");
   });
 });
@@ -1251,7 +1539,8 @@ elements.versionsModal?.addEventListener("click", (event) => {
 [
   elements.deviceManagerModal,
   elements.instanceViewerModal,
-  elements.webhookSettingsModal
+  elements.webhookSettingsModal,
+  elements.securityModal
 ].forEach((modal) => {
   modal?.addEventListener("click", (event) => {
     if (event.target === modal) {
@@ -1277,7 +1566,8 @@ document.addEventListener("keydown", (event) => {
   [
     elements.deviceManagerModal,
     elements.instanceViewerModal,
-    elements.webhookSettingsModal
+    elements.webhookSettingsModal,
+    elements.securityModal
   ].forEach((modal) => {
     if (modal && !modal.classList.contains("hidden")) {
       closeModal(modal);

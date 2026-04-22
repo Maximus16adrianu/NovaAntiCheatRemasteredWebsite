@@ -3,9 +3,11 @@ const { config } = require("./config");
 const {
   getLicenseWebhookConfig,
   getWebhookEventDefinitions,
+  listRecentLicenseAuthAttempts,
   logAudit,
   normalizeDiscordWebhookUrl,
-  normalizeWebhookEventSettings
+  normalizeWebhookEventSettings,
+  sendLicenseWebhookTest
 } = require("./activity");
 const { getDatabase } = require("./database");
 const { buildHwidFingerprint } = require("./hwid");
@@ -272,9 +274,10 @@ function listLicenseDevices(licenseId) {
   `).all(licenseId).map(serializeDevice);
 }
 
-function listLicenseInstances(licenseId) {
+function listLicenseInstances(licenseId, options = {}) {
   reconcileSessions();
-  return getDatabase().prepare(`
+  const includeInactive = Boolean(options.includeInactive);
+  const rows = getDatabase().prepare(`
     SELECT i.*,
            d.device_name,
            d.hwid_hash,
@@ -282,8 +285,23 @@ function listLicenseInstances(licenseId) {
       FROM license_instances i
       LEFT JOIN license_devices d ON d.id = i.device_id
      WHERE i.license_id = ?
-     ORDER BY i.active DESC, i.last_seen_at DESC
+     ORDER BY i.active DESC, open_session_count DESC, i.last_seen_at DESC, i.id DESC
   `).all(licenseId).map(serializeInstance);
+
+  const filtered = includeInactive ? rows : rows.filter((instance) => instance.active);
+  const deduped = [];
+  const seen = new Set();
+
+  for (const instance of filtered) {
+    const identityKey = instance.instanceUuid || instance.instanceHash || `row-${instance.id}`;
+    if (seen.has(identityKey)) {
+      continue;
+    }
+    seen.add(identityKey);
+    deduped.push(instance);
+  }
+
+  return deduped;
 }
 
 function listRecentSessions(limit = 150) {
@@ -365,6 +383,7 @@ function buildManageLicenseState(licenseId) {
     downloads: listDownloadJarsForLicense(license),
     webhook: getLicenseWebhookConfig(license.id),
     webhookEvents: getWebhookEventDefinitions(),
+    recentAuthAttempts: listRecentLicenseAuthAttempts(license.id, 12),
     cooldownRemainingMs
   };
 }
@@ -821,9 +840,13 @@ function activateLicense(payload = {}) {
       SELECT *
         FROM license_instances
        WHERE license_id = ?
-         AND device_id = ?
-         AND instance_hash = ?
-    `).get(license.id, device.id, instanceFingerprint.hash);
+         AND (
+           (instance_uuid != '' AND instance_uuid = ?)
+           OR instance_hash = ?
+         )
+       ORDER BY active DESC, last_seen_at DESC, id DESC
+       LIMIT 1
+    `).get(license.id, instanceFingerprint.normalized.instanceUuid, instanceFingerprint.hash);
 
     const activeInstanceCount = db.prepare(`
       SELECT COUNT(*) AS count
@@ -846,7 +869,8 @@ function activateLicense(payload = {}) {
     if (instance) {
       db.prepare(`
         UPDATE license_instances
-           SET instance_uuid = ?,
+           SET device_id = ?,
+               instance_uuid = ?,
                instance_name = ?,
                fingerprint_json = ?,
                last_seen_at = ?,
@@ -856,6 +880,7 @@ function activateLicense(payload = {}) {
                reset_at = NULL
           WHERE id = ?
       `).run(
+        device.id,
         instanceFingerprint.normalized.instanceUuid,
         instanceName,
         instanceFingerprintJson,
@@ -891,6 +916,33 @@ function activateLicense(payload = {}) {
       );
       instance = db.prepare("SELECT * FROM license_instances WHERE id = ?").get(insert.lastInsertRowid);
     }
+
+    const duplicateInstances = db.prepare(`
+      SELECT id
+        FROM license_instances
+       WHERE license_id = ?
+         AND id != ?
+         AND (
+           (instance_uuid != '' AND instance_uuid = ?)
+           OR instance_hash = ?
+         )
+    `).all(license.id, instance.id, instanceFingerprint.normalized.instanceUuid, instanceFingerprint.hash);
+
+    for (const duplicateInstance of duplicateInstances) {
+      closeOpenSessionsForInstance(duplicateInstance.id, "merged", timestamp);
+    }
+
+    db.prepare(`
+      UPDATE license_instances
+         SET active = 0,
+             slot_claimed = 0
+       WHERE license_id = ?
+         AND id != ?
+         AND (
+           (instance_uuid != '' AND instance_uuid = ?)
+           OR instance_hash = ?
+         )
+    `).run(license.id, instance.id, instanceFingerprint.normalized.instanceUuid, instanceFingerprint.hash);
 
     closeOpenSessionsForInstance(instance.id, "reauth", timestamp);
 
@@ -1050,9 +1102,15 @@ function heartbeatLicenseSession(payload = {}) {
   db.prepare(`
     UPDATE license_instances
        SET last_seen_at = ?,
+           instance_name = COALESCE(NULLIF(?, ''), instance_name),
            last_server_name = COALESCE(NULLIF(?, ''), last_server_name)
      WHERE id = ?
-  `).run(timestamp, normalizeText(payload.serverName), session.instance_id);
+  `).run(
+    timestamp,
+    normalizeText(payload.instanceName),
+    normalizeText(payload.serverName),
+    session.instance_id
+  );
 
   return {
     ok: true,
@@ -1140,6 +1198,25 @@ function updateSelfServiceWebhook(licenseKey, username, input = {}) {
   });
 
   return buildManageLicenseState(license.id);
+}
+
+async function sendSelfServiceWebhookTest(licenseKey, username, input = {}) {
+  const license = getSelfServiceManageLicense(licenseKey, username);
+  assertCustomerManageMutationAllowed(license);
+
+  try {
+    await sendLicenseWebhookTest({
+      licenseId: license.id,
+      webhookUrl: input.webhookUrl ?? input.url ?? ""
+    });
+  } catch (error) {
+    throw new HttpError(400, error?.message || "Webhook test failed.");
+  }
+
+  return {
+    ok: true,
+    message: "Test alert sent successfully."
+  };
 }
 
 function resetLicenseDevices(license, deviceIds = [], options = {}) {
@@ -1322,6 +1399,47 @@ function resetLicenseDevicesByKey(licenseKey, username, deviceIds = []) {
   });
 }
 
+function revokeAllLicenseDevicesByKey(licenseKey, username) {
+  const license = getSelfServiceManageLicense(licenseKey, username);
+  assertCustomerManageMutationAllowed(license);
+
+  const deviceIds = getDatabase().prepare(`
+    SELECT id
+      FROM license_devices
+     WHERE license_id = ?
+       AND active = 1
+     ORDER BY last_seen_at DESC, id DESC
+  `).all(license.id).map((row) => row.id);
+
+  if (deviceIds.length === 0) {
+    return {
+      ...buildManageLicenseState(license.id),
+      message: "No active devices are currently stored on this license."
+    };
+  }
+
+  const result = resetLicenseDevices(license, deviceIds, {
+    actor: "self_service",
+    closeReason: "user_security_reset",
+    ignoreCooldown: false,
+    updateCooldown: true
+  });
+
+  logAudit({
+    licenseId: license.id,
+    actor: "self_service",
+    action: "security_revoke_all_devices",
+    details: {
+      deviceCount: deviceIds.length
+    }
+  });
+
+  return {
+    ...result,
+    message: `Revoked ${deviceIds.length} registered device${deviceIds.length === 1 ? "" : "s"}.`
+  };
+}
+
 function adminResetDevices(licenseId, deviceIds = []) {
   const license = getLicenseById(licenseId);
   if (!license) {
@@ -1362,6 +1480,45 @@ function adminResetInstances(licenseId, instanceIds = []) {
   return result;
 }
 
+function revokeAllLicenseInstancesByKey(licenseKey, username) {
+  const license = getSelfServiceManageLicense(licenseKey, username);
+  assertCustomerManageMutationAllowed(license);
+
+  const instanceIds = getDatabase().prepare(`
+    SELECT id
+      FROM license_instances
+     WHERE license_id = ?
+       AND active = 1
+     ORDER BY last_seen_at DESC, id DESC
+  `).all(license.id).map((row) => row.id);
+
+  if (instanceIds.length === 0) {
+    return {
+      ...buildManageLicenseState(license.id),
+      message: "No stored instances are currently registered on this license."
+    };
+  }
+
+  resetLicenseInstances(license, instanceIds, {
+    actor: "self_service",
+    closeReason: "user_instance_revoke_all"
+  });
+
+  logAudit({
+    licenseId: license.id,
+    actor: "self_service",
+    action: "security_revoke_all_instances",
+    details: {
+      instanceCount: instanceIds.length
+    }
+  });
+
+  return {
+    ...buildManageLicenseState(license.id),
+    message: `Revoked ${instanceIds.length} stored instance${instanceIds.length === 1 ? "" : "s"}.`
+  };
+}
+
 module.exports = {
   addLicenseTime,
   activateLicense,
@@ -1379,6 +1536,9 @@ module.exports = {
   lookupManageState,
   lookupResetState,
   resetLicenseDevicesByKey,
+  revokeAllLicenseDevicesByKey,
+  revokeAllLicenseInstancesByKey,
+  sendSelfServiceWebhookTest,
   shutdownLicenseSession,
   updateSelfServiceWebhook,
   updateLicense

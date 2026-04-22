@@ -9,7 +9,10 @@ const {
   lookupManageState,
   lookupResetState,
   resetLicenseDevicesByKey,
+  revokeAllLicenseDevicesByKey,
+  revokeAllLicenseInstancesByKey,
   shutdownLicenseSession,
+  sendSelfServiceWebhookTest,
   updateSelfServiceWebhook
 } = require("../licenses");
 const { assertPluginAccessAllowed, assertPublicAccessAllowed } = require("../system-state");
@@ -138,6 +141,36 @@ function createApiRouter() {
           ? "Webhook saved."
           : "Webhook removed."
       });
+    } catch (error) {
+      next(error);
+    }
+  });
+
+  router.post("/manage/webhook/test", publicLimiter, (req, res, next) => {
+    Promise.resolve().then(async () => {
+      assertPublicAccessAllowed("License management");
+      const result = await sendSelfServiceWebhookTest(req.body.licenseKey, req.body.username, {
+        webhookUrl: req.body.webhookUrl
+      });
+      res.json(result);
+    }).catch(next);
+  });
+
+  router.post("/manage/revoke-devices", publicLimiter, (req, res, next) => {
+    try {
+      assertPublicAccessAllowed("License management");
+      const result = revokeAllLicenseDevicesByKey(req.body.licenseKey, req.body.username);
+      res.json(result);
+    } catch (error) {
+      next(error);
+    }
+  });
+
+  router.post("/manage/revoke-instances", publicLimiter, (req, res, next) => {
+    try {
+      assertPublicAccessAllowed("License management");
+      const result = revokeAllLicenseInstancesByKey(req.body.licenseKey, req.body.username);
+      res.json(result);
     } catch (error) {
       next(error);
     }

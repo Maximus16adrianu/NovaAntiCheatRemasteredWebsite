@@ -1014,7 +1014,7 @@ textarea {
 
 .manage-action-grid {
   display: grid;
-  grid-template-columns: repeat(3, minmax(0, 1fr));
+  grid-template-columns: repeat(4, minmax(0, 1fr));
   gap: 14px;
   margin-top: 12px;
 }
@@ -1065,6 +1065,7 @@ textarea {
 }
 
 .instance-list,
+.auth-attempt-list,
 .webhook-event-list {
   display: grid;
   gap: 12px;
@@ -1086,6 +1087,13 @@ textarea {
   margin: 0;
   color: var(--muted);
   line-height: 1.55;
+}
+
+.device-meta,
+.instance-meta,
+.mono-wrap {
+  overflow-wrap: anywhere;
+  word-break: break-word;
 }
 
 .webhook-event {
@@ -1172,6 +1180,10 @@ textarea {
   padding: 22px;
 }
 
+.security-modal-panel {
+  width: min(100%, 1120px);
+}
+
 .downloads-modal-panel h3 {
   margin: 0 0 8px;
   font-family: "Space Grotesk", sans-serif;
@@ -1223,6 +1235,17 @@ textarea {
 
 .download-empty {
   color: var(--muted);
+}
+
+.download-empty strong {
+  display: block;
+  margin-bottom: 6px;
+  color: var(--text);
+}
+
+.download-empty p {
+  margin: 0;
+  line-height: 1.6;
 }
 
 .download-card-head {
@@ -1318,6 +1341,84 @@ textarea {
   line-height: 1.55;
 }
 
+.security-panel-grid {
+  display: grid;
+  grid-template-columns: minmax(280px, 360px) minmax(0, 1fr);
+  gap: 14px;
+  margin-top: 18px;
+}
+
+.security-card,
+.auth-attempt-card {
+  padding: 16px;
+  border: 1px solid var(--border-soft);
+  border-radius: 14px;
+  background: rgba(255, 255, 255, 0.03);
+}
+
+.security-card h4,
+.auth-attempt-card h5 {
+  margin: 0;
+  font-family: "Space Grotesk", sans-serif;
+}
+
+.security-copy,
+.security-note,
+.auth-attempt-head p {
+  margin: 10px 0 0;
+  color: var(--muted);
+  line-height: 1.6;
+}
+
+.security-note {
+  font-size: 0.92rem;
+}
+
+.security-actions {
+  display: grid;
+  gap: 10px;
+  margin-top: 16px;
+}
+
+.security-card-head {
+  margin-bottom: 14px;
+}
+
+.auth-attempt-head {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.auth-attempt-meta {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  justify-content: flex-end;
+}
+
+.auth-attempt-chip {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 30px;
+  padding: 0 11px;
+  border-radius: 999px;
+  font-size: 0.82rem;
+  font-weight: 700;
+}
+
+.auth-attempt-chip.success {
+  background: rgba(113, 226, 165, 0.16);
+  color: #9cffc5;
+}
+
+.auth-attempt-chip.danger {
+  background: rgba(255, 112, 154, 0.14);
+  color: #ffbfd3;
+}
+
 .hidden {
   display: none !important;
 }
@@ -1390,7 +1491,8 @@ textarea {
   .versions-hero,
   .versions-band-grid,
   .versions-fact-grid,
-  .download-list {
+  .download-list,
+  .security-panel-grid {
     grid-template-columns: 1fr;
   }
 
@@ -1459,7 +1561,8 @@ textarea {
   .actions-row,
   .devices-header,
   .edition-head,
-  .download-card-head {
+  .download-card-head,
+  .auth-attempt-head {
     flex-direction: column;
     align-items: stretch;
   }

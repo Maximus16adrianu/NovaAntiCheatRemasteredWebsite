@@ -543,18 +543,13 @@ textarea:focus {
   padding: 20px;
 }
 
-.wide-modal {
-  width: min(100%, 1380px);
-  max-height: min(92vh, 980px);
-  overflow: auto;
-}
-
 .modal-detail-grid {
   margin-top: 6px;
 }
 
 .modal-jar-grid {
   margin-top: 6px;
+  grid-template-columns: minmax(360px, 430px) minmax(0, 1fr);
 }
 
 .jar-grid {
@@ -807,11 +802,26 @@ textarea:focus {
 
 .modal-panel {
   width: min(100%, 520px);
+  max-height: calc(100vh - 36px);
+  overflow: auto;
   padding: 20px;
+}
+
+.modal-panel.wide-modal {
+  width: min(96vw, 1380px);
+  max-width: 1380px;
+  max-height: calc(100vh - 36px);
+  overflow-x: hidden;
 }
 
 .hidden {
   display: none !important;
+}
+
+@media (max-width: 1180px) {
+  .modal-jar-grid {
+    grid-template-columns: 1fr;
+  }
 }
 
 @media (max-width: 1320px) {

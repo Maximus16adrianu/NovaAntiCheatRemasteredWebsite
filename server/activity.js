@@ -57,6 +57,11 @@ const AUTH_FAILURE_ACTIONS = new Set([
   "heartbeat_denied_license_expired"
 ]);
 
+const AUTH_ATTEMPT_ACTIONS = Object.freeze([
+  "license_activated",
+  ...AUTH_FAILURE_ACTIONS
+]);
+
 const RESET_ACTIVITY_ACTIONS = new Set([
   "device_reset",
   "instance_reset",
@@ -562,6 +567,40 @@ function listAuditLogs({ licenseId, actor, action, search, limit = 150 } = {}) {
   }));
 }
 
+function listRecentLicenseAuthAttempts(licenseId, limit = 12) {
+  const normalizedLicenseId = Number.parseInt(licenseId, 10);
+  if (!Number.isFinite(normalizedLicenseId)) {
+    return [];
+  }
+
+  const placeholders = AUTH_ATTEMPT_ACTIONS.map(() => "?").join(",");
+  const rows = getDatabase().prepare(`
+    SELECT a.*,
+           d.device_name
+      FROM audit_logs a
+      LEFT JOIN license_devices d ON d.id = a.device_id
+     WHERE a.license_id = ?
+       AND a.action IN (${placeholders})
+     ORDER BY a.created_at DESC
+     LIMIT ?
+  `).all(
+    normalizedLicenseId,
+    ...AUTH_ATTEMPT_ACTIONS,
+    Math.min(50, Math.max(5, Number.parseInt(limit, 10) || 12))
+  );
+
+  return rows.map((row) => ({
+    id: row.id,
+    licenseId: row.license_id,
+    deviceId: row.device_id,
+    deviceName: row.device_name || "",
+    actor: row.actor,
+    action: row.action,
+    details: safeJsonParse(row.details_json, {}),
+    createdAt: row.created_at
+  }));
+}
+
 function getAuditLogFilterOptions() {
   const db = getDatabase();
   return {
@@ -580,6 +619,67 @@ function getAuditLogFilterOptions() {
        ORDER BY action ASC
     `).all().map((row) => row.action)
   };
+}
+
+async function sendLicenseWebhookTest({ licenseId, webhookUrl } = {}) {
+  const normalizedLicenseId = Number.parseInt(licenseId, 10);
+  if (!Number.isFinite(normalizedLicenseId)) {
+    throw new Error("License not found.");
+  }
+
+  const normalizedWebhookUrl = normalizeDiscordWebhookUrl(webhookUrl);
+  if (!normalizedWebhookUrl) {
+    throw new Error("Enter a Discord webhook URL first.");
+  }
+
+  const licenseContext = getLicenseWebhookConfig(normalizedLicenseId);
+  if (!licenseContext.licenseKey && !licenseContext.customerUsername) {
+    throw new Error("License not found.");
+  }
+
+  const payloadJson = JSON.stringify(buildDiscordPayload({
+    eventKey: "webhookTest",
+    title: "Nova webhook test successful.",
+    description: "This Discord webhook is reachable and ready to receive Nova alerts.",
+    licenseContext: {
+      ...licenseContext,
+      licenseId: normalizedLicenseId
+    }
+  }));
+
+  try {
+    const response = await postJsonToWebhook(normalizedWebhookUrl, payloadJson);
+    const success = response.statusCode >= 200 && response.statusCode < 300;
+    if (!success) {
+      throw new Error(response.body
+        ? `Discord returned ${response.statusCode}: ${normalizeText(response.body).slice(0, 240)}`
+        : `Discord returned ${response.statusCode}.`);
+    }
+
+    logAudit({
+      licenseId: normalizedLicenseId,
+      actor: "self_service",
+      action: "license_webhook_test_sent",
+      details: {
+        responseStatus: response.statusCode
+      }
+    });
+
+    return {
+      ok: true,
+      statusCode: response.statusCode
+    };
+  } catch (error) {
+    logAudit({
+      licenseId: normalizedLicenseId,
+      actor: "self_service",
+      action: "license_webhook_test_failed",
+      details: {
+        message: error?.message || "Webhook test failed."
+      }
+    });
+    throw error;
+  }
 }
 
 async function processExpiringLicenseNotifications() {
@@ -633,8 +733,10 @@ module.exports = {
   getLicenseWebhookConfig,
   getWebhookEventDefinitions,
   listAuditLogs,
+  listRecentLicenseAuthAttempts,
   logAudit,
   normalizeDiscordWebhookUrl,
   normalizeWebhookEventSettings,
+  sendLicenseWebhookTest,
   processExpiringLicenseNotifications
 };
