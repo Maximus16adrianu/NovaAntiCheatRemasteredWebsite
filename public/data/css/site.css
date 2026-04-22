@@ -216,6 +216,61 @@ input[type="number"] {
   background: var(--panel);
 }
 
+.has-card-info {
+  position: relative;
+  padding-right: 54px;
+}
+
+.card-info-hint {
+  position: absolute;
+  top: 14px;
+  right: 14px;
+  z-index: 3;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 22px;
+  height: 22px;
+  border: 1px solid rgba(157, 92, 255, 0.32);
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.04);
+  color: #eadcff;
+  cursor: help;
+  user-select: none;
+}
+
+.card-info-symbol {
+  font-size: 0.74rem;
+  font-weight: 700;
+  line-height: 1;
+}
+
+.card-info-tooltip {
+  position: absolute;
+  top: calc(100% + 8px);
+  right: 0;
+  width: max-content;
+  max-width: min(240px, calc(100vw - 48px));
+  padding: 10px 12px;
+  border: 1px solid rgba(157, 92, 255, 0.22);
+  border-radius: 12px;
+  background: rgba(15, 7, 22, 0.98);
+  color: var(--text);
+  font-size: 0.82rem;
+  line-height: 1.5;
+  box-shadow: 0 14px 32px rgba(0, 0, 0, 0.28);
+  opacity: 0;
+  pointer-events: none;
+  transform: translateY(-4px);
+  transition: opacity 0.16s ease, transform 0.16s ease;
+}
+
+.card-info-hint:hover .card-info-tooltip,
+.card-info-hint.is-open .card-info-tooltip {
+  opacity: 1;
+  transform: translateY(0);
+}
+
 .panel[id] {
   scroll-margin-top: calc(var(--topbar-offset) + 18px);
 }
@@ -804,9 +859,19 @@ textarea {
   color: var(--text);
 }
 
+.button-danger {
+  background: linear-gradient(135deg, #c94b73, #9f2e52);
+  color: #fff;
+}
+
 .button-primary:hover,
 .button-primary:focus-visible {
   box-shadow: 0 0 0 3px rgba(157, 92, 255, 0.18);
+}
+
+.button-danger:hover,
+.button-danger:focus-visible {
+  box-shadow: 0 0 0 3px rgba(201, 75, 115, 0.18);
 }
 
 .button-secondary:hover,
@@ -1374,14 +1439,107 @@ textarea {
   font-size: 0.92rem;
 }
 
-.security-actions {
-  display: grid;
-  gap: 10px;
-  margin-top: 16px;
-}
-
 .security-card-head {
   margin-bottom: 14px;
+}
+
+.security-summary-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  margin-top: 16px;
+  margin-bottom: 14px;
+  flex-wrap: wrap;
+}
+
+.security-blacklist-list,
+.security-entry-list {
+  display: grid;
+  gap: 12px;
+}
+
+.security-blacklist-card,
+.security-entry-card {
+  padding: 14px;
+  border: 1px solid var(--border-soft);
+  border-radius: 14px;
+  background: rgba(255, 255, 255, 0.03);
+}
+
+.security-blacklist-card h5,
+.security-entry-card h5 {
+  margin: 0 0 8px;
+  font-size: 1rem;
+  font-family: "Space Grotesk", sans-serif;
+}
+
+.security-entry-head {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.security-entry-head p {
+  margin: 6px 0 0;
+  color: var(--muted);
+  line-height: 1.5;
+}
+
+.security-candidate-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 14px;
+  margin-top: 14px;
+}
+
+.action-confirm-panel {
+  width: min(100%, 760px);
+}
+
+.action-confirm-section {
+  margin-top: 18px;
+}
+
+.action-effects-list {
+  margin: 10px 0 0;
+  padding-left: 20px;
+  color: var(--muted);
+  line-height: 1.65;
+}
+
+.action-effects-list li + li {
+  margin-top: 6px;
+}
+
+.action-info-box {
+  margin-top: 18px;
+  padding: 14px 16px;
+  border: 1px solid var(--border-soft);
+  border-left: 3px solid rgba(157, 92, 255, 0.8);
+  border-radius: 14px;
+  background: rgba(255, 255, 255, 0.03);
+}
+
+.action-info-box strong {
+  display: block;
+  margin-bottom: 6px;
+  color: #eadcff;
+}
+
+.action-info-box p {
+  margin: 0;
+  color: var(--muted);
+  line-height: 1.6;
+}
+
+.action-info-box.danger {
+  border-left-color: rgba(201, 75, 115, 0.9);
+}
+
+.action-info-box.info {
+  border-left-color: rgba(157, 92, 255, 0.85);
 }
 
 .auth-attempt-head {
@@ -1492,7 +1650,8 @@ textarea {
   .versions-band-grid,
   .versions-fact-grid,
   .download-list,
-  .security-panel-grid {
+  .security-panel-grid,
+  .security-candidate-grid {
     grid-template-columns: 1fr;
   }
 
@@ -1562,7 +1721,8 @@ textarea {
   .devices-header,
   .edition-head,
   .download-card-head,
-  .auth-attempt-head {
+  .auth-attempt-head,
+  .security-entry-head {
     flex-direction: column;
     align-items: stretch;
   }

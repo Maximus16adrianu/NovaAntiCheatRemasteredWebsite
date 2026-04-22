@@ -4,13 +4,16 @@ const state = {
   devices: [],
   instances: [],
   authAttempts: [],
+  blacklistedDevices: [],
+  blacklistedInstances: [],
   downloads: [],
   webhookEvents: [],
   downloadLicenseKey: "",
   downloadLicenseUser: "",
   pendingDownloadJarId: null,
   downloadCooldownUntil: 0,
-  downloadCooldownTimerId: null
+  downloadCooldownTimerId: null,
+  actionConfirm: null
 };
 
 const PRICING = {
@@ -57,12 +60,27 @@ const elements = {
   sendTestWebhookButton: document.getElementById("sendTestWebhookButton"),
   clearWebhookButton: document.getElementById("clearWebhookButton"),
   openSecurityModalButton: document.getElementById("openSecurityModalButton"),
+  securityCountChip: document.getElementById("securityCountChip"),
   securityModal: document.getElementById("securityModal"),
   closeSecurityModalButton: document.getElementById("closeSecurityModalButton"),
-  revokeAllDevicesButton: document.getElementById("revokeAllDevicesButton"),
-  revokeAllInstancesButton: document.getElementById("revokeAllInstancesButton"),
+  securityBlockedCount: document.getElementById("securityBlockedCount"),
+  securityBlacklistList: document.getElementById("securityBlacklistList"),
+  securityDeviceList: document.getElementById("securityDeviceList"),
+  securityInstanceList: document.getElementById("securityInstanceList"),
+  clearSecurityListButton: document.getElementById("clearSecurityListButton"),
   authAttemptCountChip: document.getElementById("authAttemptCountChip"),
   authAttemptsList: document.getElementById("authAttemptsList"),
+  actionConfirmModal: document.getElementById("actionConfirmModal"),
+  actionConfirmPill: document.getElementById("actionConfirmPill"),
+  actionConfirmTitle: document.getElementById("actionConfirmTitle"),
+  actionConfirmDescription: document.getElementById("actionConfirmDescription"),
+  actionConfirmInfoBox: document.getElementById("actionConfirmInfoBox"),
+  actionConfirmInfoTitle: document.getElementById("actionConfirmInfoTitle"),
+  actionConfirmInfoText: document.getElementById("actionConfirmInfoText"),
+  actionConfirmEffects: document.getElementById("actionConfirmEffects"),
+  actionConfirmCancelButton: document.getElementById("actionConfirmCancelButton"),
+  actionConfirmSubmitButton: document.getElementById("actionConfirmSubmitButton"),
+  closeActionConfirmButton: document.getElementById("closeActionConfirmButton"),
   submitResetButton: document.getElementById("submitResetButton"),
   clearSelectionButton: document.getElementById("clearSelectionButton"),
   calcSlots: document.getElementById("calcSlots"),
@@ -161,6 +179,57 @@ function setBusy(button, busy, label) {
     button.dataset.defaultLabel = button.textContent.trim();
   }
   button.textContent = busy ? label : button.dataset.defaultLabel;
+}
+
+function hydrateCardInfoDots(root = document) {
+  if (!root?.querySelectorAll) {
+    return;
+  }
+
+  root.querySelectorAll("[data-card-info]").forEach((card) => {
+    card.classList.add("has-card-info");
+
+    const hasDirectHint = Array.from(card.children || []).some((child) => child.classList?.contains("card-info-hint"));
+    if (hasDirectHint) {
+      return;
+    }
+
+    const tooltipText = String(card.dataset.cardInfo || "").trim();
+    if (!tooltipText) {
+      return;
+    }
+
+    const hint = document.createElement("span");
+    hint.className = "card-info-hint";
+    hint.setAttribute("aria-hidden", "true");
+    hint.innerHTML = `
+      <span class="card-info-symbol">i</span>
+      <span class="card-info-tooltip">${escapeHtml(tooltipText)}</span>
+    `;
+    card.appendChild(hint);
+  });
+}
+
+function closeOpenCardHints(except = null) {
+  document.querySelectorAll(".card-info-hint.is-open").forEach((hint) => {
+    if (hint !== except) {
+      hint.classList.remove("is-open");
+    }
+  });
+}
+
+function handleCardInfoHintClick(event) {
+  const hint = event.target.closest(".card-info-hint");
+  if (!hint) {
+    closeOpenCardHints();
+    return;
+  }
+
+  event.preventDefault();
+  event.stopPropagation();
+  const shouldOpen = !hint.classList.contains("is-open");
+  closeOpenCardHints(hint);
+  hint.classList.toggle("is-open", shouldOpen);
 }
 
 function formatDate(isoValue) {
@@ -349,6 +418,7 @@ function renderDevices(devices) {
   for (const device of state.devices) {
     const card = document.createElement("article");
     card.className = "device-card";
+    card.dataset.cardInfo = "Stored device on this license.";
     card.innerHTML = `
       <label class="device-check">
         <input class="device-selector" type="checkbox" value="${device.id}">
@@ -371,6 +441,7 @@ function renderDevices(devices) {
   }
 
   elements.devicesList.appendChild(fragment);
+  hydrateCardInfoDots(elements.devicesList);
   document.querySelectorAll(".device-selector").forEach((input) => {
     input.addEventListener("change", updateActionState);
   });
@@ -395,6 +466,7 @@ function renderInstances(instances) {
   for (const instance of state.instances) {
     const card = document.createElement("article");
     card.className = "instance-card";
+    card.dataset.cardInfo = "Stored server instance on this license.";
     const status = instance.online ? "Online" : "Offline";
     card.innerHTML = `
       <h5>${escapeHtml(getInstanceCardTitle(instance))}</h5>
@@ -413,6 +485,7 @@ function renderInstances(instances) {
   }
 
   elements.instancesList.appendChild(fragment);
+  hydrateCardInfoDots(elements.instancesList);
 }
 
 function renderWebhookSettings(webhook, definitions) {
@@ -450,6 +523,144 @@ function renderWebhookSettings(webhook, definitions) {
   elements.manageWebhookEvents.appendChild(fragment);
 }
 
+function isDeviceBlacklisted(device) {
+  const hwidHash = String(device?.hwidHash || "").trim();
+  return hwidHash && state.blacklistedDevices.some((entry) => entry.hwidHash === hwidHash);
+}
+
+function isInstanceBlacklisted(instance) {
+  const instanceUuid = String(instance?.instanceUuid || "").trim();
+  const instanceHash = String(instance?.instanceHash || "").trim();
+  return state.blacklistedInstances.some((entry) => {
+    const blacklistedUuid = String(entry.instanceUuid || "").trim();
+    const blacklistedHash = String(entry.instanceHash || "").trim();
+    return (instanceUuid && blacklistedUuid && instanceUuid === blacklistedUuid)
+      || (instanceHash && blacklistedHash && instanceHash === blacklistedHash);
+  });
+}
+
+function renderSecurityState(security = {}) {
+  state.blacklistedDevices = Array.isArray(security.blacklistedDevices) ? security.blacklistedDevices : [];
+  state.blacklistedInstances = Array.isArray(security.blacklistedInstances) ? security.blacklistedInstances : [];
+
+  const totalBlocked = state.blacklistedDevices.length + state.blacklistedInstances.length;
+  if (elements.securityCountChip) {
+    elements.securityCountChip.textContent = `${totalBlocked} blocked`;
+  }
+  if (elements.securityBlockedCount) {
+    elements.securityBlockedCount.textContent = `${totalBlocked} blocked`;
+  }
+  if (elements.clearSecurityListButton) {
+    elements.clearSecurityListButton.disabled = totalBlocked === 0;
+  }
+
+  if (elements.securityBlacklistList) {
+    elements.securityBlacklistList.innerHTML = "";
+    if (totalBlocked === 0) {
+      elements.securityBlacklistList.innerHTML = `<div class="download-empty"><strong>No blocked devices or instances.</strong><p>Blacklist entries will appear here after you block a PC or server instance.</p></div>`;
+    } else {
+      const fragment = document.createDocumentFragment();
+
+      for (const device of state.blacklistedDevices) {
+        const card = document.createElement("article");
+        card.className = "security-blacklist-card";
+        card.dataset.cardInfo = "Blocked by the license security list.";
+        card.innerHTML = `
+          <div class="device-chip-row">
+            <span class="device-chip">Device</span>
+            <span class="device-chip">Blocked ${escapeHtml(formatDate(device.createdAt))}</span>
+          </div>
+          <h5>${escapeHtml(cleanLabel(device.deviceName, "Blocked device"))}</h5>
+          <p class="instance-meta">HWID: <span class="mono-wrap">${escapeHtml(device.hwidHash || "-")}</span></p>
+        `;
+        fragment.appendChild(card);
+      }
+
+      for (const instance of state.blacklistedInstances) {
+        const title = getMeaningfulLabel(instance.instanceName)
+          || (instance.instanceUuid ? `Instance ${instance.instanceUuid.slice(0, 8)}` : "Blocked instance");
+        const serverBadge = getMeaningfulLabel(instance.lastServerName) || "Server unknown";
+        const card = document.createElement("article");
+        card.className = "security-blacklist-card";
+        card.dataset.cardInfo = "Blocked by the license security list.";
+        card.innerHTML = `
+          <div class="device-chip-row">
+            <span class="device-chip">Instance</span>
+            <span class="device-chip">${escapeHtml(serverBadge)}</span>
+            <span class="device-chip">Blocked ${escapeHtml(formatDate(instance.createdAt))}</span>
+          </div>
+          <h5>${escapeHtml(title)}</h5>
+          <p class="instance-meta">Instance: <span class="mono-wrap">${escapeHtml(instance.instanceUuid || instance.instanceHash || "-")}</span></p>
+        `;
+        fragment.appendChild(card);
+      }
+
+      elements.securityBlacklistList.appendChild(fragment);
+      hydrateCardInfoDots(elements.securityBlacklistList);
+    }
+  }
+
+  if (elements.securityDeviceList) {
+    elements.securityDeviceList.innerHTML = "";
+    if (state.devices.length === 0) {
+      elements.securityDeviceList.innerHTML = `<div class="download-empty"><strong>No active devices to block.</strong><p>Devices that successfully authenticated on this license will show up here.</p></div>`;
+    } else {
+      const fragment = document.createDocumentFragment();
+      for (const device of state.devices) {
+        const blacklisted = isDeviceBlacklisted(device);
+        const card = document.createElement("article");
+        card.className = "security-entry-card";
+        card.dataset.cardInfo = "Use this to block the device on this license.";
+        card.innerHTML = `
+          <div class="security-entry-head">
+            <div>
+              <h5>${escapeHtml(cleanLabel(device.deviceName, "Unknown Device"))}</h5>
+              <p>${escapeHtml(device.online ? "Currently online" : "Currently offline")}</p>
+            </div>
+            <button class="button ${blacklisted ? "button-secondary" : "button-primary"}" type="button" data-blacklist-device-id="${device.id}"${blacklisted ? " disabled" : ""}>
+              ${blacklisted ? "Blocked" : "Blacklist"}
+            </button>
+          </div>
+          <p class="instance-meta">HWID: <span class="mono-wrap">${escapeHtml(device.hwidHash || "-")}</span></p>
+        `;
+        fragment.appendChild(card);
+      }
+      elements.securityDeviceList.appendChild(fragment);
+      hydrateCardInfoDots(elements.securityDeviceList);
+    }
+  }
+
+  if (elements.securityInstanceList) {
+    elements.securityInstanceList.innerHTML = "";
+    if (state.instances.length === 0) {
+      elements.securityInstanceList.innerHTML = `<div class="download-empty"><strong>No active instances to block.</strong><p>Stored server instances tied to this license will show up here.</p></div>`;
+    } else {
+      const fragment = document.createDocumentFragment();
+      for (const instance of state.instances) {
+        const blacklisted = isInstanceBlacklisted(instance);
+        const card = document.createElement("article");
+        card.className = "security-entry-card";
+        card.dataset.cardInfo = "Use this to block the server on this license.";
+        card.innerHTML = `
+          <div class="security-entry-head">
+            <div>
+              <h5>${escapeHtml(getInstanceCardTitle(instance))}</h5>
+              <p>${escapeHtml(getInstanceServerBadge(instance))}</p>
+            </div>
+            <button class="button ${blacklisted ? "button-secondary" : "button-primary"}" type="button" data-blacklist-instance-id="${instance.id}"${blacklisted ? " disabled" : ""}>
+              ${blacklisted ? "Blocked" : "Blacklist"}
+            </button>
+          </div>
+          <p class="instance-meta">Instance: <span class="mono-wrap">${escapeHtml(instance.instanceUuid || instance.instanceHash || "-")}</span></p>
+        `;
+        fragment.appendChild(card);
+      }
+      elements.securityInstanceList.appendChild(fragment);
+      hydrateCardInfoDots(elements.securityInstanceList);
+    }
+  }
+}
+
 function getAuthAttemptStatus(entry) {
   return entry?.action === "license_activated" ? "allowed" : "denied";
 }
@@ -468,6 +679,10 @@ function getAuthAttemptTitle(entry) {
       return "HWID limit denied";
     case "instance_limit_denied":
       return "Instance limit denied";
+    case "auth_denied_device_blacklisted":
+      return "Device blocked";
+    case "auth_denied_instance_blacklisted":
+      return "Instance blocked";
     case "heartbeat_denied_license_missing":
       return "Heartbeat denied";
     case "heartbeat_denied_license_disabled":
@@ -496,6 +711,10 @@ function getAuthAttemptSummary(entry) {
       return `${details.activeDeviceCount ?? "?"}/${details.maxHwids ?? "?"} device slots were already in use.`;
     case "instance_limit_denied":
       return `${details.activeInstanceCount ?? "?"}/${details.maxInstances ?? "?"} instance slots were already in use.`;
+    case "auth_denied_device_blacklisted":
+      return "This device is on the security blacklist for the license.";
+    case "auth_denied_instance_blacklisted":
+      return "This server instance is on the security blacklist for the license.";
     case "heartbeat_denied_license_missing":
       return "A heartbeat reached the backend after the session or license was no longer valid.";
     case "heartbeat_denied_license_disabled":
@@ -527,6 +746,7 @@ function renderAuthAttempts(attempts) {
     const details = entry?.details || {};
     const card = document.createElement("article");
     card.className = "auth-attempt-card";
+    card.dataset.cardInfo = "Recent auth result for this license.";
 
     const chips = [];
     const deviceName = cleanLabel(entry.deviceName || details.deviceName, "");
@@ -559,6 +779,7 @@ function renderAuthAttempts(attempts) {
   }
 
   elements.authAttemptsList.appendChild(fragment);
+  hydrateCardInfoDots(elements.authAttemptsList);
 }
 
 function renderLookupResult(payload) {
@@ -583,6 +804,7 @@ function renderLookupResult(payload) {
   renderInstances(payload.instances || []);
   renderWebhookSettings(payload.webhook || {}, payload.webhookEvents || []);
   renderAuthAttempts(payload.recentAuthAttempts || []);
+  renderSecurityState(payload.security || {});
 }
 
 function clearResult() {
@@ -591,6 +813,7 @@ function clearResult() {
   closeModal(elements.instanceViewerModal);
   closeModal(elements.webhookSettingsModal);
   closeModal(elements.securityModal);
+  closeActionConfirm(false);
   elements.devicesList.innerHTML = "";
   elements.licenseDisplayName.textContent = "-";
   elements.licenseUser.textContent = "-";
@@ -609,6 +832,15 @@ function clearResult() {
   if (elements.authAttemptsList) {
     elements.authAttemptsList.innerHTML = "";
   }
+  if (elements.securityBlacklistList) {
+    elements.securityBlacklistList.innerHTML = "";
+  }
+  if (elements.securityDeviceList) {
+    elements.securityDeviceList.innerHTML = "";
+  }
+  if (elements.securityInstanceList) {
+    elements.securityInstanceList.innerHTML = "";
+  }
   if (elements.manageWebhookEvents) {
     elements.manageWebhookEvents.innerHTML = "";
   }
@@ -618,6 +850,8 @@ function clearResult() {
   state.devices = [];
   state.instances = [];
   state.authAttempts = [];
+  state.blacklistedDevices = [];
+  state.blacklistedInstances = [];
   state.webhookEvents = [];
   state.downloadLicenseKey = "";
   state.downloadLicenseUser = "";
@@ -645,6 +879,15 @@ function clearResult() {
   if (elements.authAttemptCountChip) {
     elements.authAttemptCountChip.textContent = "0 attempts";
   }
+  if (elements.securityCountChip) {
+    elements.securityCountChip.textContent = "0 blocked";
+  }
+  if (elements.securityBlockedCount) {
+    elements.securityBlockedCount.textContent = "0 blocked";
+  }
+  if (elements.clearSecurityListButton) {
+    elements.clearSecurityListButton.disabled = true;
+  }
   updateActionState();
 }
 
@@ -671,6 +914,73 @@ async function postJson(url, body) {
   return payload;
 }
 
+function closeActionConfirm(confirmed = false) {
+  if (elements.actionConfirmModal) {
+    closeModal(elements.actionConfirmModal);
+  }
+
+  if (elements.actionConfirmSubmitButton) {
+    elements.actionConfirmSubmitButton.className = "button button-primary";
+    elements.actionConfirmSubmitButton.textContent = "Confirm";
+    elements.actionConfirmSubmitButton.disabled = false;
+  }
+  if (elements.actionConfirmInfoBox) {
+    elements.actionConfirmInfoBox.className = "action-info-box";
+  }
+
+  const pending = state.actionConfirm;
+  state.actionConfirm = null;
+  if (pending?.resolve) {
+    pending.resolve(Boolean(confirmed));
+  }
+}
+
+function requestActionConfirm({
+  pill = "Confirm",
+  title = "Confirm action",
+  description = "Review what this action does before you continue.",
+  infoTitle = "What this does",
+  infoText = "This action will immediately update the license state.",
+  effects = [],
+  confirmLabel = "Confirm",
+  tone = "info"
+} = {}) {
+  if (!elements.actionConfirmModal) {
+    return Promise.resolve(true);
+  }
+
+  if (state.actionConfirm?.resolve) {
+    state.actionConfirm.resolve(false);
+  }
+
+  elements.actionConfirmPill.textContent = pill;
+  elements.actionConfirmTitle.textContent = title;
+  elements.actionConfirmDescription.textContent = description;
+  elements.actionConfirmInfoTitle.textContent = infoTitle;
+  elements.actionConfirmInfoText.textContent = infoText;
+  elements.actionConfirmInfoBox.className = `action-info-box ${tone}`;
+  elements.actionConfirmSubmitButton.textContent = confirmLabel;
+  elements.actionConfirmSubmitButton.className = tone === "danger"
+    ? "button button-danger"
+    : "button button-primary";
+
+  const effectList = Array.isArray(effects) ? effects.filter(Boolean) : [];
+  elements.actionConfirmEffects.innerHTML = "";
+  for (const effect of effectList) {
+    const item = document.createElement("li");
+    item.textContent = effect;
+    elements.actionConfirmEffects.appendChild(item);
+  }
+
+  openModal(elements.actionConfirmModal);
+
+  return new Promise((resolve) => {
+    state.actionConfirm = {
+      resolve
+    };
+  });
+}
+
 async function lookupLicense(event) {
   event.preventDefault();
   clearStatus();
@@ -694,7 +1004,7 @@ async function lookupLicense(event) {
   try {
     const payload = await postJson("/api/manage/lookup", { licenseKey, username: licenseUser });
     renderLookupResult(payload);
-    showStatus("License loaded. You can now manage resets, security, instances and webhook alerts.", "success");
+    showStatus("License loaded. You can now manage resets, the security blacklist, instances and webhook alerts.", "success");
   } catch (error) {
     showStatus(error.message, "error");
   } finally {
@@ -716,6 +1026,28 @@ async function submitReset() {
   }
   if (selectedIds.length === 0) {
     showStatus("Select at least one device to reset.", "error");
+    return;
+  }
+
+  const selectedNames = state.devices
+    .filter((device) => selectedIds.includes(device.id))
+    .map((device) => cleanLabel(device.deviceName, "Unknown device"));
+  const confirmed = await requestActionConfirm({
+    pill: "Reset",
+    title: "Reset selected devices",
+    description: "This removes the selected HWIDs from the license so they have to authenticate again later.",
+    infoTitle: "Reset behavior",
+    infoText: "Active sessions on the selected devices are closed immediately and the normal reset cooldown starts after this action.",
+    effects: [
+      `Close the current sessions on ${selectedIds.length} selected device${selectedIds.length === 1 ? "" : "s"}.`,
+      "Remove those HWIDs from the license until they authenticate again later.",
+      "Start the normal reset cooldown for this license.",
+      selectedNames.length ? `Selected devices: ${selectedNames.join(", ")}.` : ""
+    ],
+    confirmLabel: "Reset HWIDs",
+    tone: "danger"
+  });
+  if (!confirmed) {
     return;
   }
 
@@ -760,6 +1092,25 @@ async function saveWebhook(event) {
     return;
   }
 
+  const configuredEventCount = Object.values(getSelectedWebhookEvents()).filter(Boolean).length;
+  const confirmed = await requestActionConfirm({
+    pill: "Webhook",
+    title: "Save Discord webhook",
+    description: "This stores the current webhook URL and alert switches on the license.",
+    infoTitle: "Webhook storage",
+    infoText: "Nova will use this webhook for the enabled alert types after you save it.",
+    effects: [
+      "Store the Discord webhook on this license.",
+      `Enable ${configuredEventCount} selected alert type${configuredEventCount === 1 ? "" : "s"}.`,
+      "Replace any webhook URL that was saved before."
+    ],
+    confirmLabel: "Save webhook",
+    tone: "info"
+  });
+  if (!confirmed) {
+    return;
+  }
+
   setBusy(elements.saveWebhookButton, true, "Saving...");
   try {
     const payload = await postJson("/api/manage/webhook", {
@@ -780,6 +1131,24 @@ async function saveWebhook(event) {
 async function clearWebhook() {
   if (!state.licenseKey || !state.licenseUser) {
     showStatus("Run a license lookup first.", "error");
+    return;
+  }
+
+  const confirmed = await requestActionConfirm({
+    pill: "Webhook",
+    title: "Clear Discord webhook",
+    description: "This removes the saved webhook from the license.",
+    infoTitle: "Webhook removal",
+    infoText: "After this, Discord alerts stop until a new webhook is saved.",
+    effects: [
+      "Remove the stored Discord webhook URL.",
+      "Stop future Discord alerts for this license.",
+      "Keep the current license and auth data unchanged."
+    ],
+    confirmLabel: "Clear webhook",
+    tone: "danger"
+  });
+  if (!confirmed) {
     return;
   }
 
@@ -810,6 +1179,24 @@ async function sendTestWebhook() {
 
   if (!elements.manageWebhookUrl.value.trim()) {
     showStatus("Enter a Discord webhook URL first.", "error");
+    return;
+  }
+
+  const confirmed = await requestActionConfirm({
+    pill: "Webhook",
+    title: "Send test alert",
+    description: "This sends one sample message to the Discord webhook currently entered in the field.",
+    infoTitle: "Test alert",
+    infoText: "Use this to verify that the webhook works before or after saving it.",
+    effects: [
+      "Send one sample Nova alert to the entered Discord webhook URL.",
+      "Leave the rest of the license state unchanged.",
+      "Not change HWIDs, instances or blacklist entries."
+    ],
+    confirmLabel: "Send test alert",
+    tone: "info"
+  });
+  if (!confirmed) {
     return;
   }
 
@@ -873,53 +1260,163 @@ function openSecurityModal() {
   openModal(elements.securityModal);
 }
 
-async function revokeAllDevices() {
+async function blacklistDevice(deviceId) {
   clearStatus();
   if (!state.licenseKey || !state.licenseUser) {
     showStatus("Run a license lookup first.", "error");
     return;
   }
-  if (!window.confirm("Revoke every registered device on this license?")) {
+  const device = state.devices.find((entry) => entry.id === deviceId);
+  if (!device) {
+    showStatus("Device not found.", "error");
     return;
   }
 
-  setBusy(elements.revokeAllDevicesButton, true, "Revoking...");
+  const confirmed = await requestActionConfirm({
+    pill: "Security",
+    title: "Blacklist this device",
+    description: "This permanently blocks the selected HWID from authenticating on this license until the security list is cleared.",
+    infoTitle: "Device blacklist",
+    infoText: "The matching device is kicked immediately if it is online and future auth attempts from that HWID are denied.",
+    effects: [
+      `Block ${cleanLabel(device.deviceName, "this device")} on this license.`,
+      "Close the current live session on that device if one is open.",
+      "Free the slot so a different device can authenticate later.",
+      "Keep the block active until you clear the security list."
+    ],
+    confirmLabel: "Blacklist device",
+    tone: "danger"
+  });
+  if (!confirmed) {
+    return;
+  }
+
+  const button = document.querySelector(`[data-blacklist-device-id="${deviceId}"]`);
+  setBusy(button, true, "Blocking...");
   try {
-    const payload = await postJson("/api/manage/revoke-devices", {
+    const payload = await postJson("/api/manage/security/device-blacklist", {
       licenseKey: state.licenseKey,
-      username: state.licenseUser
+      username: state.licenseUser,
+      deviceId
     });
     renderLookupResult(payload);
-    showStatus(payload.message || "All registered devices were revoked.", "success");
+    showStatus(payload.message || "The device was blacklisted.", "success");
   } catch (error) {
     showStatus(error.message, "error");
   } finally {
-    setBusy(elements.revokeAllDevicesButton, false, "Revoking...");
+    setBusy(button, false, "Blocking...");
   }
 }
 
-async function revokeAllInstances() {
+async function blacklistInstance(instanceId) {
   clearStatus();
   if (!state.licenseKey || !state.licenseUser) {
     showStatus("Run a license lookup first.", "error");
     return;
   }
-  if (!window.confirm("Revoke every stored instance on this license?")) {
+  const instance = state.instances.find((entry) => entry.id === instanceId);
+  if (!instance) {
+    showStatus("Instance not found.", "error");
     return;
   }
 
-  setBusy(elements.revokeAllInstancesButton, true, "Revoking...");
+  const confirmed = await requestActionConfirm({
+    pill: "Security",
+    title: "Blacklist this server instance",
+    description: "This blocks the selected server instance from authenticating on this license until the security list is cleared.",
+    infoTitle: "Instance blacklist",
+    infoText: "The matching server is kicked immediately if it is online and future auth attempts from the same stable instance are denied.",
+    effects: [
+      `Block ${getInstanceCardTitle(instance)} on this license.`,
+      "Close the current live session for that server if it is online.",
+      "Free the instance slot for a different server.",
+      "Keep the block active until you clear the security list."
+    ],
+    confirmLabel: "Blacklist instance",
+    tone: "danger"
+  });
+  if (!confirmed) {
+    return;
+  }
+
+  const button = document.querySelector(`[data-blacklist-instance-id="${instanceId}"]`);
+  setBusy(button, true, "Blocking...");
   try {
-    const payload = await postJson("/api/manage/revoke-instances", {
+    const payload = await postJson("/api/manage/security/instance-blacklist", {
+      licenseKey: state.licenseKey,
+      username: state.licenseUser,
+      instanceId
+    });
+    renderLookupResult(payload);
+    showStatus(payload.message || "The instance was blacklisted.", "success");
+  } catch (error) {
+    showStatus(error.message, "error");
+  } finally {
+    setBusy(button, false, "Blocking...");
+  }
+}
+
+async function clearSecurityList() {
+  clearStatus();
+  if (!state.licenseKey || !state.licenseUser) {
+    showStatus("Run a license lookup first.", "error");
+    return;
+  }
+
+  const blockedCount = state.blacklistedDevices.length + state.blacklistedInstances.length;
+  const confirmed = await requestActionConfirm({
+    pill: "Security",
+    title: "Clear license security list",
+    description: "This removes every blocked device and server instance from the license blacklist.",
+    infoTitle: "Security list clear",
+    infoText: "Anything on the blacklist is allowed to authenticate again after this action, as long as the license and slots still allow it.",
+    effects: [
+      `Remove ${blockedCount} blocked entr${blockedCount === 1 ? "y" : "ies"} from the security blacklist.`,
+      "Allow those devices or server instances to authenticate again later.",
+      "Not restore any live session automatically."
+    ],
+    confirmLabel: "Clear security list",
+    tone: "danger"
+  });
+  if (!confirmed) {
+    return;
+  }
+
+  setBusy(elements.clearSecurityListButton, true, "Clearing...");
+  try {
+    const payload = await postJson("/api/manage/security/clear", {
       licenseKey: state.licenseKey,
       username: state.licenseUser
     });
     renderLookupResult(payload);
-    showStatus(payload.message || "All stored instances were revoked.", "success");
+    showStatus(payload.message || "The security list was cleared.", "success");
   } catch (error) {
     showStatus(error.message, "error");
   } finally {
-    setBusy(elements.revokeAllInstancesButton, false, "Revoking...");
+    setBusy(elements.clearSecurityListButton, false, "Clearing...");
+  }
+}
+
+function handleSecurityListClick(event) {
+  const deviceButton = event.target.closest("[data-blacklist-device-id]");
+  if (deviceButton) {
+    const deviceId = Number.parseInt(deviceButton.dataset.blacklistDeviceId, 10);
+    if (Number.isFinite(deviceId)) {
+      blacklistDevice(deviceId).catch((error) => {
+        showStatus(error.message, "error");
+      });
+    }
+    return;
+  }
+
+  const instanceButton = event.target.closest("[data-blacklist-instance-id]");
+  if (instanceButton) {
+    const instanceId = Number.parseInt(instanceButton.dataset.blacklistInstanceId, 10);
+    if (Number.isFinite(instanceId)) {
+      blacklistInstance(instanceId).catch((error) => {
+        showStatus(error.message, "error");
+      });
+    }
   }
 }
 
@@ -1069,11 +1566,13 @@ function renderDownloads(jars) {
   for (const jar of state.downloads) {
     const card = document.createElement("article");
     card.className = "download-card";
+    card.dataset.cardInfo = "Build info and direct download.";
     card.innerHTML = buildDownloadCardHtml(jar, "data-download-jar-id");
     fragment.appendChild(card);
   }
 
   elements.downloadsList.appendChild(fragment);
+  hydrateCardInfoDots(elements.downloadsList);
   updateDownloadCooldownUi();
 }
 
@@ -1466,6 +1965,7 @@ function initAnchorScroll() {
 elements.mobileMenuButton?.addEventListener("click", toggleMobileMenu);
 elements.closeMobileMenuButton?.addEventListener("click", closeMobileMenu);
 elements.mobileNavOverlay?.addEventListener("click", closeMobileMenu);
+document.addEventListener("click", handleCardInfoHintClick, true);
 elements.lookupForm.addEventListener("submit", lookupLicense);
 elements.openDeviceManagerButton?.addEventListener("click", openDeviceManagerModal);
 elements.openInstanceViewerButton?.addEventListener("click", openInstanceViewerModal);
@@ -1475,6 +1975,9 @@ elements.closeDeviceManagerButton?.addEventListener("click", () => closeModal(el
 elements.closeInstanceViewerButton?.addEventListener("click", () => closeModal(elements.instanceViewerModal));
 elements.closeWebhookSettingsButton?.addEventListener("click", () => closeModal(elements.webhookSettingsModal));
 elements.closeSecurityModalButton?.addEventListener("click", () => closeModal(elements.securityModal));
+elements.closeActionConfirmButton?.addEventListener("click", () => closeActionConfirm(false));
+elements.actionConfirmCancelButton?.addEventListener("click", () => closeActionConfirm(false));
+elements.actionConfirmSubmitButton?.addEventListener("click", () => closeActionConfirm(true));
 elements.webhookForm?.addEventListener("submit", (event) => {
   saveWebhook(event).catch((error) => {
     showStatus(error.message, "error");
@@ -1490,16 +1993,13 @@ elements.clearWebhookButton?.addEventListener("click", () => {
     showStatus(error.message, "error");
   });
 });
-elements.revokeAllDevicesButton?.addEventListener("click", () => {
-  revokeAllDevices().catch((error) => {
+elements.clearSecurityListButton?.addEventListener("click", () => {
+  clearSecurityList().catch((error) => {
     showStatus(error.message, "error");
   });
 });
-elements.revokeAllInstancesButton?.addEventListener("click", () => {
-  revokeAllInstances().catch((error) => {
-    showStatus(error.message, "error");
-  });
-});
+elements.securityDeviceList?.addEventListener("click", handleSecurityListClick);
+elements.securityInstanceList?.addEventListener("click", handleSecurityListClick);
 elements.submitResetButton.addEventListener("click", submitReset);
 elements.clearSelectionButton.addEventListener("click", clearSelection);
 elements.openChecksButton?.addEventListener("click", openChecksModal);
@@ -1540,10 +2040,15 @@ elements.versionsModal?.addEventListener("click", (event) => {
   elements.deviceManagerModal,
   elements.instanceViewerModal,
   elements.webhookSettingsModal,
-  elements.securityModal
+  elements.securityModal,
+  elements.actionConfirmModal
 ].forEach((modal) => {
   modal?.addEventListener("click", (event) => {
     if (event.target === modal) {
+      if (modal === elements.actionConfirmModal) {
+        closeActionConfirm(false);
+        return;
+      }
       closeModal(modal);
     }
   });
@@ -1553,6 +2058,7 @@ document.addEventListener("keydown", (event) => {
     return;
   }
 
+  closeOpenCardHints();
   closeMobileMenu();
   if (elements.downloadsModal && !elements.downloadsModal.classList.contains("hidden")) {
     closeDownloadsModal();
@@ -1573,6 +2079,9 @@ document.addEventListener("keydown", (event) => {
       closeModal(modal);
     }
   });
+  if (elements.actionConfirmModal && !elements.actionConfirmModal.classList.contains("hidden")) {
+    closeActionConfirm(false);
+  }
 });
 window.addEventListener("resize", () => {
   if (window.innerWidth > 780) {
@@ -1588,3 +2097,4 @@ if (elements.calcSlots && elements.calcMonths) {
 }
 initCheckItems();
 initAnchorScroll();
+hydrateCardInfoDots(document);

@@ -200,6 +200,32 @@ function serializeInstance(row) {
   };
 }
 
+function serializeBlacklistedDevice(row) {
+  return {
+    id: row.id,
+    licenseId: row.license_id,
+    hwidHash: row.hwid_hash,
+    deviceName: row.device_name || "Unknown Device",
+    details: safeJsonParse(row.details_json, {}),
+    createdAt: row.created_at,
+    updatedAt: row.updated_at
+  };
+}
+
+function serializeBlacklistedInstance(row) {
+  return {
+    id: row.id,
+    licenseId: row.license_id,
+    instanceUuid: row.instance_uuid || "",
+    instanceHash: row.instance_hash || "",
+    instanceName: row.instance_name || "Unknown Instance",
+    lastServerName: row.last_server_name || "",
+    details: safeJsonParse(row.details_json, {}),
+    createdAt: row.created_at,
+    updatedAt: row.updated_at
+  };
+}
+
 function sanitizeServerInfo(server = {}) {
   return {
     serverName: normalizeText(server.serverName || server.name, "Unknown Server"),
@@ -304,6 +330,47 @@ function listLicenseInstances(licenseId, options = {}) {
   return deduped;
 }
 
+function listLicenseDeviceBlacklist(licenseId) {
+  return getDatabase().prepare(`
+    SELECT *
+      FROM license_device_blacklist
+     WHERE license_id = ?
+     ORDER BY updated_at DESC, id DESC
+  `).all(licenseId).map(serializeBlacklistedDevice);
+}
+
+function listLicenseInstanceBlacklist(licenseId) {
+  return getDatabase().prepare(`
+    SELECT *
+      FROM license_instance_blacklist
+     WHERE license_id = ?
+     ORDER BY updated_at DESC, id DESC
+  `).all(licenseId).map(serializeBlacklistedInstance);
+}
+
+function getBlacklistedDevice(licenseId, hwidHash) {
+  return getDatabase().prepare(`
+    SELECT *
+      FROM license_device_blacklist
+     WHERE license_id = ?
+       AND hwid_hash = ?
+  `).get(licenseId, hwidHash);
+}
+
+function getBlacklistedInstance(licenseId, instanceUuid, instanceHash) {
+  return getDatabase().prepare(`
+    SELECT *
+      FROM license_instance_blacklist
+     WHERE license_id = ?
+       AND (
+         (instance_uuid != '' AND instance_uuid = ?)
+         OR instance_hash = ?
+       )
+     ORDER BY updated_at DESC, id DESC
+     LIMIT 1
+  `).get(licenseId, instanceUuid, instanceHash);
+}
+
 function listRecentSessions(limit = 150) {
   reconcileSessions();
   return getDatabase().prepare(`
@@ -384,6 +451,10 @@ function buildManageLicenseState(licenseId) {
     webhook: getLicenseWebhookConfig(license.id),
     webhookEvents: getWebhookEventDefinitions(),
     recentAuthAttempts: listRecentLicenseAuthAttempts(license.id, 12),
+    security: {
+      blacklistedDevices: listLicenseDeviceBlacklist(license.id),
+      blacklistedInstances: listLicenseInstanceBlacklist(license.id)
+    },
     cooldownRemainingMs
   };
 }
@@ -782,6 +853,39 @@ function activateLicense(payload = {}) {
     instanceHash: instanceFingerprint.hash,
     server: serverInfo
   });
+
+  const blacklistedDevice = getBlacklistedDevice(license.id, fingerprint.hash);
+  if (blacklistedDevice) {
+    logAudit({
+      licenseId: license.id,
+      actor: "plugin",
+      action: "auth_denied_device_blacklisted",
+      details: {
+        deviceName,
+        hwidHash: fingerprint.hash
+      }
+    });
+    throw new HttpError(403, "This device has been blocked for this license.");
+  }
+
+  const blacklistedInstance = getBlacklistedInstance(
+    license.id,
+    instanceFingerprint.normalized.instanceUuid,
+    instanceFingerprint.hash
+  );
+  if (blacklistedInstance) {
+    logAudit({
+      licenseId: license.id,
+      actor: "plugin",
+      action: "auth_denied_instance_blacklisted",
+      details: {
+        instanceName,
+        instanceHash: instanceFingerprint.hash,
+        instanceUuid: instanceFingerprint.normalized.instanceUuid
+      }
+    });
+    throw new HttpError(403, "This server instance has been blocked for this license.");
+  }
 
   const transaction = db.transaction(() => {
     let createdDevice = null;
@@ -1219,6 +1323,302 @@ async function sendSelfServiceWebhookTest(licenseKey, username, input = {}) {
   };
 }
 
+function blacklistLicenseDeviceByKey(licenseKey, username, deviceId) {
+  const license = getSelfServiceManageLicense(licenseKey, username);
+  assertCustomerManageMutationAllowed(license);
+
+  const normalizedDeviceId = Number.parseInt(deviceId, 10);
+  if (!Number.isFinite(normalizedDeviceId)) {
+    throw new HttpError(400, "Select a valid device.");
+  }
+
+  const db = getDatabase();
+  const device = db.prepare(`
+    SELECT *
+      FROM license_devices
+     WHERE license_id = ?
+       AND id = ?
+  `).get(license.id, normalizedDeviceId);
+
+  if (!device) {
+    throw new HttpError(404, "Device not found.");
+  }
+
+  const timestamp = nowIso();
+  const detailsJson = JSON.stringify({
+    deviceId: device.id,
+    lastSeenAt: device.last_seen_at,
+    lastUsername: device.last_username
+  });
+
+  db.transaction(() => {
+    db.prepare(`
+      INSERT INTO license_device_blacklist (
+        license_id,
+        hwid_hash,
+        device_name,
+        details_json,
+        created_at,
+        updated_at
+      ) VALUES (?, ?, ?, ?, ?, ?)
+      ON CONFLICT(license_id, hwid_hash) DO UPDATE SET
+        device_name = excluded.device_name,
+        details_json = excluded.details_json,
+        updated_at = excluded.updated_at
+    `).run(
+      license.id,
+      device.hwid_hash,
+      device.device_name,
+      detailsJson,
+      timestamp,
+      timestamp
+    );
+
+    db.prepare(`
+      UPDATE license_devices
+         SET active = 0,
+             reset_at = ?
+       WHERE license_id = ?
+         AND hwid_hash = ?
+    `).run(timestamp, license.id, device.hwid_hash);
+
+    db.prepare(`
+      UPDATE license_instances
+         SET active = 0,
+             slot_claimed = 0,
+             reset_at = ?
+       WHERE license_id = ?
+         AND device_id = ?
+    `).run(timestamp, license.id, device.id);
+
+    db.prepare(`
+      UPDATE service_sessions
+         SET closed_at = ?,
+             close_reason = 'device_blacklisted',
+             stale_closed = 0
+       WHERE license_id = ?
+         AND device_id = ?
+         AND closed_at IS NULL
+    `).run(timestamp, license.id, device.id);
+
+    db.prepare(`
+      UPDATE licenses
+         SET updated_at = ?
+       WHERE id = ?
+    `).run(timestamp, license.id);
+  })();
+
+  logAudit({
+    licenseId: license.id,
+    deviceId: device.id,
+    actor: "self_service",
+    action: "security_device_blacklisted",
+    details: {
+      deviceName: device.device_name,
+      hwidHash: device.hwid_hash
+    }
+  });
+
+  return {
+    ...buildManageLicenseState(license.id),
+    message: `${device.device_name || "Device"} was added to the security blacklist.`
+  };
+}
+
+function blacklistLicenseInstanceByKey(licenseKey, username, instanceId) {
+  const license = getSelfServiceManageLicense(licenseKey, username);
+  assertCustomerManageMutationAllowed(license);
+
+  const normalizedInstanceId = Number.parseInt(instanceId, 10);
+  if (!Number.isFinite(normalizedInstanceId)) {
+    throw new HttpError(400, "Select a valid instance.");
+  }
+
+  const db = getDatabase();
+  const instance = db.prepare(`
+    SELECT i.*, d.device_name
+      FROM license_instances i
+      LEFT JOIN license_devices d ON d.id = i.device_id
+     WHERE i.license_id = ?
+       AND i.id = ?
+  `).get(license.id, normalizedInstanceId);
+
+  if (!instance) {
+    throw new HttpError(404, "Instance not found.");
+  }
+  if (!instance.instance_uuid && !instance.instance_hash) {
+    throw new HttpError(400, "This instance does not have a stable identity yet.");
+  }
+
+  const timestamp = nowIso();
+  const blacklistInstanceUuid = normalizeText(instance.instance_uuid || instance.instance_hash);
+  const detailsJson = JSON.stringify({
+    instanceId: instance.id,
+    deviceName: instance.device_name || "",
+    lastSeenAt: instance.last_seen_at
+  });
+
+  const matchingRows = db.prepare(`
+    SELECT id
+      FROM license_instances
+     WHERE license_id = ?
+       AND (
+         (instance_uuid != '' AND instance_uuid = ?)
+         OR instance_hash = ?
+       )
+  `).all(license.id, blacklistInstanceUuid, instance.instance_hash);
+  const matchingIds = matchingRows.map((row) => row.id).filter(Number.isFinite);
+
+  db.transaction(() => {
+    db.prepare(`
+      INSERT INTO license_instance_blacklist (
+        license_id,
+        instance_uuid,
+        instance_hash,
+        instance_name,
+        last_server_name,
+        details_json,
+        created_at,
+        updated_at
+      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+      ON CONFLICT(license_id, instance_uuid) DO UPDATE SET
+        instance_hash = excluded.instance_hash,
+        instance_name = excluded.instance_name,
+        last_server_name = excluded.last_server_name,
+        details_json = excluded.details_json,
+        updated_at = excluded.updated_at
+    `).run(
+      license.id,
+      blacklistInstanceUuid,
+      instance.instance_hash,
+      instance.instance_name,
+      instance.last_server_name,
+      detailsJson,
+      timestamp,
+      timestamp
+    );
+
+    db.prepare(`
+      UPDATE license_instances
+         SET active = 0,
+             slot_claimed = 0,
+             reset_at = ?
+       WHERE license_id = ?
+         AND (
+           (instance_uuid != '' AND instance_uuid = ?)
+           OR instance_hash = ?
+         )
+    `).run(timestamp, license.id, blacklistInstanceUuid, instance.instance_hash);
+
+    if (matchingIds.length > 0) {
+      const placeholders = matchingIds.map(() => "?").join(",");
+      db.prepare(`
+        UPDATE service_sessions
+           SET closed_at = ?,
+               close_reason = 'instance_blacklisted',
+               stale_closed = 0
+         WHERE license_id = ?
+           AND closed_at IS NULL
+           AND (
+             instance_hash = ?
+             OR instance_id IN (${placeholders})
+           )
+      `).run(timestamp, license.id, instance.instance_hash, ...matchingIds);
+    } else {
+      db.prepare(`
+        UPDATE service_sessions
+           SET closed_at = ?,
+               close_reason = 'instance_blacklisted',
+               stale_closed = 0
+         WHERE license_id = ?
+           AND closed_at IS NULL
+           AND instance_hash = ?
+      `).run(timestamp, license.id, instance.instance_hash);
+    }
+
+    db.prepare(`
+      UPDATE licenses
+         SET updated_at = ?
+       WHERE id = ?
+    `).run(timestamp, license.id);
+  })();
+
+  logAudit({
+    licenseId: license.id,
+    deviceId: instance.device_id,
+    actor: "self_service",
+    action: "security_instance_blacklisted",
+    details: {
+      instanceName: instance.instance_name,
+      instanceUuid: blacklistInstanceUuid,
+      instanceHash: instance.instance_hash,
+      lastServerName: instance.last_server_name
+    }
+  });
+
+  return {
+    ...buildManageLicenseState(license.id),
+    message: `${instance.instance_name || "Instance"} was added to the security blacklist.`
+  };
+}
+
+function clearLicenseSecurityListByKey(licenseKey, username) {
+  const license = getSelfServiceManageLicense(licenseKey, username);
+  assertCustomerManageMutationAllowed(license);
+
+  const db = getDatabase();
+  const blacklistedDeviceCount = db.prepare(`
+    SELECT COUNT(*) AS count
+      FROM license_device_blacklist
+     WHERE license_id = ?
+  `).get(license.id).count;
+  const blacklistedInstanceCount = db.prepare(`
+    SELECT COUNT(*) AS count
+      FROM license_instance_blacklist
+     WHERE license_id = ?
+  `).get(license.id).count;
+
+  if (blacklistedDeviceCount === 0 && blacklistedInstanceCount === 0) {
+    return {
+      ...buildManageLicenseState(license.id),
+      message: "The security blacklist is already empty."
+    };
+  }
+
+  db.transaction(() => {
+    db.prepare(`
+      DELETE FROM license_device_blacklist
+       WHERE license_id = ?
+    `).run(license.id);
+
+    db.prepare(`
+      DELETE FROM license_instance_blacklist
+       WHERE license_id = ?
+    `).run(license.id);
+
+    db.prepare(`
+      UPDATE licenses
+         SET updated_at = ?
+       WHERE id = ?
+    `).run(nowIso(), license.id);
+  })();
+
+  logAudit({
+    licenseId: license.id,
+    actor: "self_service",
+    action: "security_blacklist_cleared",
+    details: {
+      blacklistedDeviceCount,
+      blacklistedInstanceCount
+    }
+  });
+
+  return {
+    ...buildManageLicenseState(license.id),
+    message: "The license security blacklist was cleared."
+  };
+}
+
 function resetLicenseDevices(license, deviceIds = [], options = {}) {
   const db = getDatabase();
   if (!license) {
@@ -1524,6 +1924,9 @@ module.exports = {
   activateLicense,
   adminResetDevices,
   adminResetInstances,
+  blacklistLicenseDeviceByKey,
+  blacklistLicenseInstanceByKey,
+  clearLicenseSecurityListByKey,
   createLicense,
   deleteLicense,
   extendLicenseTerm,

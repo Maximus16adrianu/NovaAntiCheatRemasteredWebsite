@@ -5,6 +5,9 @@ const { pluginSecureTransportMiddleware } = require("../secure-transport");
 const { createSignedServerTimePayload } = require("../secure-transport");
 const {
   activateLicense,
+  blacklistLicenseDeviceByKey,
+  blacklistLicenseInstanceByKey,
+  clearLicenseSecurityListByKey,
   heartbeatLicenseSession,
   lookupManageState,
   lookupResetState,
@@ -170,6 +173,36 @@ function createApiRouter() {
     try {
       assertPublicAccessAllowed("License management");
       const result = revokeAllLicenseInstancesByKey(req.body.licenseKey, req.body.username);
+      res.json(result);
+    } catch (error) {
+      next(error);
+    }
+  });
+
+  router.post("/manage/security/device-blacklist", publicLimiter, (req, res, next) => {
+    try {
+      assertPublicAccessAllowed("License management");
+      const result = blacklistLicenseDeviceByKey(req.body.licenseKey, req.body.username, req.body.deviceId);
+      res.json(result);
+    } catch (error) {
+      next(error);
+    }
+  });
+
+  router.post("/manage/security/instance-blacklist", publicLimiter, (req, res, next) => {
+    try {
+      assertPublicAccessAllowed("License management");
+      const result = blacklistLicenseInstanceByKey(req.body.licenseKey, req.body.username, req.body.instanceId);
+      res.json(result);
+    } catch (error) {
+      next(error);
+    }
+  });
+
+  router.post("/manage/security/clear", publicLimiter, (req, res, next) => {
+    try {
+      assertPublicAccessAllowed("License management");
+      const result = clearLicenseSecurityListByKey(req.body.licenseKey, req.body.username);
       res.json(result);
     } catch (error) {
       next(error);

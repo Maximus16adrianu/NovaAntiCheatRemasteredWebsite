@@ -39,7 +39,7 @@
     </header>
 
     <main class="landing-grid">
-      <section class="panel hero-card">
+      <section class="panel hero-card" data-card-info="Quick overview of what Nova covers.">
         <p class="section-pill">Nova</p>
         <h2>Private anticheat for Java and Bedrock.</h2>
         <p class="hero-copy">
@@ -53,29 +53,29 @@
         </div>
       </section>
 
-      <section id="checks-card" class="panel checks-panel">
+      <section id="checks-card" class="panel checks-panel" data-card-info="Main overview of the check coverage.">
         <p class="section-pill">Checks</p>
         <h3>Check Coverage</h3>
         <p class="section-copy">
           Java is the main stack. Bedrock movement support is already live, with combat still expanding.
         </p>
         <div class="checks-preview-grid">
-          <article class="preview-stat-card">
+          <article class="preview-stat-card" data-card-info="Short summary of the Java combat stack.">
             <span class="meta-label">Java combat</span>
             <strong>Large main stack</strong>
             <p>Aim, reach, engines, aura, autoclicker, autototem and more.</p>
           </article>
-          <article class="preview-stat-card">
+          <article class="preview-stat-card" data-card-info="Short summary of the Java movement stack.">
             <span class="meta-label">Java movement</span>
             <strong>Prediction-heavy</strong>
             <p>Prediction, motion, speed, fly, invalid, sprint, no push and more.</p>
           </article>
-          <article class="preview-stat-card">
+          <article class="preview-stat-card" data-card-info="Short summary of packet-side checks.">
             <span class="meta-label">Packet</span>
             <strong>Protocol coverage</strong>
             <p>BadPacket, packet order, timer, pingspoof and packet-side safeguards.</p>
           </article>
-          <article class="preview-stat-card">
+          <article class="preview-stat-card" data-card-info="Short summary of the current Bedrock side.">
             <span class="meta-label">Bedrock</span>
             <strong>Live movement support</strong>
             <p>Prediction and movement checks already run, with combat still expanding.</p>
@@ -86,37 +86,37 @@
         </div>
       </section>
 
-      <section class="panel extras-panel">
+      <section class="panel extras-panel" data-card-info="Extra systems outside the main checks.">
         <p class="section-pill">More</p>
         <div class="extras-grid">
-          <article class="extra-card">
+          <article class="extra-card" data-card-info="Extra module that can be used with Nova.">
             <h3>AntiBot</h3>
             <p>Spawns a fake player and checks if it gets attacked unnaturally.</p>
           </article>
-          <article class="extra-card">
+          <article class="extra-card" data-card-info="Extra module that can be used with Nova.">
             <h3>Combat Test</h3>
             <p>Gives flagged players a short combat test before action.</p>
           </article>
-          <article class="extra-card">
+          <article class="extra-card" data-card-info="Extra module that can be used with Nova.">
             <h3>AntiESP</h3>
             <p>Checks if a player can somehow see another player and hides that player if not.</p>
           </article>
-          <article class="extra-card">
+          <article class="extra-card" data-card-info="Extra module that can be used with Nova.">
             <h3>Backtrack</h3>
             <p>Separate backtrack checks instead of only relying on reach.</p>
           </article>
-          <article class="extra-card">
+          <article class="extra-card" data-card-info="Extra module that can be used with Nova.">
             <h3>Client Brand</h3>
             <p>Checks client brand information and simple spoofing.</p>
           </article>
-          <article class="extra-card">
+          <article class="extra-card" data-card-info="Extra module that can be used with Nova.">
             <h3>Crash Protection</h3>
             <p>Handles packet spam and basic crash attempts.</p>
           </article>
         </div>
       </section>
 
-      <section id="versions-card" class="panel info-panel versions-panel">
+      <section id="versions-card" class="panel info-panel versions-panel" data-card-info="Quick version and platform overview.">
         <p class="section-pill">Supported Versions</p>
         <h3>Version Support</h3>
         <p class="section-copy">
@@ -128,12 +128,12 @@
           <span class="version-pill legacy">1.8 to 1.12 best effort</span>
         </div>
         <div class="checks-preview-grid">
-          <article class="preview-stat-card">
+          <article class="preview-stat-card" data-card-info="Main server software Nova is tested on.">
             <span class="meta-label">Tested software</span>
             <strong>Paper and Bukkit</strong>
             <p>Those are the main tested server targets.</p>
           </article>
-          <article class="preview-stat-card">
+          <article class="preview-stat-card" data-card-info="Software that may work but is not fully checked.">
             <span class="meta-label">Other software</span>
             <strong>Not fully tested</strong>
             <p>Other server software may work, but it has not been fully verified yet.</p>
@@ -144,36 +144,36 @@
         </div>
       </section>
 
-      <section id="pricing-card" class="panel pricing-panel">
+      <section id="pricing-card" class="panel pricing-panel" data-card-info="Base prices and slot costs.">
         <p class="section-pill">Pricing</p>
         <h3>Affordable Licensing</h3>
         <p class="section-copy">
           No player caps, no feature paywalls, and direct pricing that still fits smaller servers.
         </p>
         <div class="pricing-grid">
-          <article class="pricing-card">
+          <article class="pricing-card" data-card-info="Monthly price with the base slot included.">
             <h3>Monthly</h3>
             <strong>&euro;5</strong>
             <p>Includes 1 HWID and 1 instance. Every extra package is &euro;1.</p>
           </article>
-          <article class="pricing-card">
+          <article class="pricing-card" data-card-info="Yearly price with the base slot included.">
             <h3>Yearly</h3>
             <strong>&euro;30</strong>
             <p>Includes 1 HWID and 1 instance. Every extra package is &euro;5.</p>
           </article>
-          <article class="pricing-card">
+          <article class="pricing-card" data-card-info="One payment with the base slot included.">
             <h3>Lifetime</h3>
             <strong>&euro;75</strong>
             <p>Includes 1 HWID and 1 instance. Every extra package is &euro;10.</p>
           </article>
-          <article class="pricing-card">
+          <article class="pricing-card" data-card-info="Extra slot package pricing.">
             <h3>Add-on Packs</h3>
             <strong>+1 HWID +1 instance</strong>
             <p>Monthly &euro;1, yearly &euro;5, lifetime &euro;10 per package.</p>
           </article>
         </div>
 
-        <div class="calculator-card">
+        <div class="calculator-card" data-card-info="Use this to compare the cheapest plan.">
           <div class="calculator-head">
             <div>
               <h3>Best license for my server</h3>
@@ -196,24 +196,24 @@
           </div>
 
           <div class="calculator-results">
-            <article class="calc-result" data-plan="monthly">
+            <article class="calc-result" data-plan="monthly" data-card-info="Estimated monthly total for your setup.">
               <h4>Monthly</h4>
               <strong id="calcMonthlyPrice">&euro;5</strong>
               <p id="calcMonthlyMeta">1 month total</p>
             </article>
-            <article class="calc-result" data-plan="yearly">
+            <article class="calc-result" data-plan="yearly" data-card-info="Estimated yearly total for your setup.">
               <h4>Yearly</h4>
               <strong id="calcYearlyPrice">&euro;30</strong>
               <p id="calcYearlyMeta">1 year total</p>
             </article>
-            <article class="calc-result" data-plan="lifetime">
+            <article class="calc-result" data-plan="lifetime" data-card-info="Estimated one-time lifetime total.">
               <h4>Lifetime</h4>
               <strong id="calcLifetimePrice">&euro;75</strong>
               <p id="calcLifetimeMeta">One payment forever</p>
             </article>
           </div>
 
-          <div class="calculator-best">
+          <div class="calculator-best" data-card-info="Quick pick based on the totals above.">
             <span class="meta-label">Best fit</span>
             <strong id="calcBestPlan">Yearly</strong>
             <p id="calcBestMeta">Cheapest total for a 12 month plan.</p>
@@ -221,7 +221,7 @@
         </div>
       </section>
 
-      <section id="buy-card" class="panel info-panel">
+      <section id="buy-card" class="panel info-panel" data-card-info="How to buy a new Nova license.">
         <p class="section-pill">Buy</p>
         <h3>Manual payments only</h3>
         <p class="section-copy">
@@ -235,7 +235,7 @@
         <a class="button button-primary" href="https://paypal.me/Cerials" target="_blank" rel="noreferrer">Pay with PayPal</a>
       </section>
 
-      <section id="renew-card" class="panel info-panel">
+      <section id="renew-card" class="panel info-panel" data-card-info="How to renew or upgrade your current key.">
         <p class="section-pill">Renew</p>
         <h3>Renewals keep the same key</h3>
         <p class="section-copy">
@@ -248,7 +248,7 @@
         </div>
       </section>
 
-      <section id="reset-card" class="panel reset-card">
+      <section id="reset-card" class="panel reset-card" data-card-info="Buyer portal for your license.">
         <p class="section-pill">Manage License</p>
         <h3>Manage your license</h3>
         <p class="section-copy">
@@ -270,59 +270,59 @@
 
         <section id="lookupResult" class="lookup-result hidden">
           <div class="license-meta manage-summary-grid">
-            <div>
+            <div data-card-info="Name tied to this license key.">
               <span class="meta-label">License</span>
               <strong id="licenseDisplayName">-</strong>
             </div>
-            <div>
+            <div data-card-info="User that must match during auth and buyer actions.">
               <span class="meta-label">User</span>
               <strong id="licenseUser">-</strong>
             </div>
-            <div>
+            <div data-card-info="When the license ends.">
               <span class="meta-label">Expiry</span>
               <strong id="licenseExpiry">-</strong>
             </div>
-            <div>
+            <div data-card-info="Current HWID and instance usage for this license.">
               <span class="meta-label">Slots</span>
               <strong id="licenseSlots">-</strong>
             </div>
-            <div>
+            <div data-card-info="Time left until the next HWID reset is allowed.">
               <span class="meta-label">Reset cooldown</span>
               <strong id="resetCooldown">Ready</strong>
             </div>
-            <div>
+            <div data-card-info="Whether a Discord webhook is saved right now.">
               <span class="meta-label">Webhook</span>
               <strong id="webhookStatus">Not configured</strong>
             </div>
           </div>
 
           <div class="manage-action-grid">
-            <button id="openDeviceManagerButton" type="button" class="manage-action-card" disabled>
+            <button id="openDeviceManagerButton" type="button" class="manage-action-card" data-card-info="View the stored devices and reset selected HWIDs." disabled>
               <span class="section-pill">Reset</span>
               <strong>Registered devices</strong>
               <small>Select the HWIDs you want to clear.</small>
               <span id="deviceCountChip" class="small-chip">0 devices</span>
             </button>
 
-            <button id="openInstanceViewerButton" type="button" class="manage-action-card" disabled>
+            <button id="openInstanceViewerButton" type="button" class="manage-action-card" data-card-info="View the stored server instances on this license." disabled>
               <span class="section-pill">Instances</span>
               <strong>Stored instances</strong>
               <small>Check which servers are stored on this license.</small>
               <span id="instanceCountChip" class="small-chip">0 instances</span>
             </button>
 
-            <button id="openWebhookSettingsButton" type="button" class="manage-action-card" disabled>
+            <button id="openWebhookSettingsButton" type="button" class="manage-action-card" data-card-info="Set Discord alerts for this license." disabled>
               <span class="section-pill">Webhook</span>
               <strong>Discord alerts</strong>
               <small>Choose which events should be sent to your webhook.</small>
               <span id="webhookCountChip" class="small-chip">0 alerts</span>
             </button>
 
-            <button id="openSecurityModalButton" type="button" class="manage-action-card" disabled>
+            <button id="openSecurityModalButton" type="button" class="manage-action-card" data-card-info="Block devices or servers and check recent auth results." disabled>
               <span class="section-pill">Security</span>
               <strong>License security</strong>
-              <small>Revoke devices, clear instances and review recent auth attempts.</small>
-              <span id="authAttemptCountChip" class="small-chip">0 attempts</span>
+              <small>Blacklist devices or servers and review recent auth attempts.</small>
+              <span id="securityCountChip" class="small-chip">0 blocked</span>
             </button>
           </div>
         </section>
@@ -420,34 +420,86 @@
         <div>
           <p class="section-pill">Manage License</p>
           <h3>License security</h3>
-          <p class="section-copy">Use these controls if you think the key was shared, leaked or connected from the wrong server.</p>
+          <p class="section-copy">Block specific devices or server instances if the key was shared, leaked or used from the wrong place.</p>
         </div>
         <button id="closeSecurityModalButton" type="button" class="button button-secondary">Close</button>
       </div>
 
       <div class="security-panel-grid">
-        <article class="security-card">
-          <p class="section-pill">Actions</p>
-          <h4>Lock down this license</h4>
-          <p class="security-copy">Revoke every stored device or instance tied to this license from one place.</p>
+        <article class="security-card" data-card-info="Shows everything blocked on this license.">
+          <p class="section-pill">Blacklist</p>
+          <h4>Blocked on this license</h4>
+          <p class="security-copy">Anything listed here is denied on the next auth attempt until you clear the security list.</p>
 
-          <div class="security-actions">
-            <button id="revokeAllDevicesButton" type="button" class="button button-primary">Revoke all devices</button>
-            <button id="revokeAllInstancesButton" type="button" class="button button-secondary">Revoke all instances</button>
+          <div class="security-summary-row">
+            <span id="securityBlockedCount" class="small-chip">0 blocked</span>
+            <button id="clearSecurityListButton" type="button" class="button button-secondary">Clear security list</button>
           </div>
 
-          <p class="security-note">Device revokes use the normal reset cooldown. Instance revokes clear the stored server identities for this license.</p>
+          <div id="securityBlacklistList" class="security-blacklist-list"></div>
+          <p class="security-note">Blacklisting also closes matching live sessions and prevents that device or server from authenticating again.</p>
         </article>
 
-        <article class="security-card">
+        <article class="security-card" data-card-info="Recent auth results for this license.">
           <div class="security-card-head">
             <div>
               <p class="section-pill">Audit</p>
               <h4>Last auth attempts</h4>
             </div>
+            <span id="authAttemptCountChip" class="small-chip">0 attempts</span>
           </div>
           <div id="authAttemptsList" class="auth-attempt-list"></div>
         </article>
+      </div>
+
+      <div class="security-candidate-grid">
+        <article class="security-card" data-card-info="Pick a stored device to block on this license.">
+          <div class="security-card-head">
+            <div>
+              <p class="section-pill">Devices</p>
+              <h4>Blacklist a device</h4>
+            </div>
+          </div>
+          <div id="securityDeviceList" class="security-entry-list"></div>
+        </article>
+
+        <article class="security-card" data-card-info="Pick a stored server instance to block on this license.">
+          <div class="security-card-head">
+            <div>
+              <p class="section-pill">Instances</p>
+              <h4>Blacklist a server instance</h4>
+            </div>
+          </div>
+          <div id="securityInstanceList" class="security-entry-list"></div>
+        </article>
+      </div>
+    </div>
+  </div>
+
+  <div id="actionConfirmModal" class="modal hidden" aria-hidden="true">
+    <div class="modal-panel panel action-confirm-panel">
+      <div class="downloads-head">
+        <div>
+          <p id="actionConfirmPill" class="section-pill">Confirm</p>
+          <h3 id="actionConfirmTitle">Confirm action</h3>
+          <p id="actionConfirmDescription" class="section-copy">Review what this action does before you continue.</p>
+        </div>
+        <button id="closeActionConfirmButton" type="button" class="button button-secondary">Close</button>
+      </div>
+
+      <div id="actionConfirmInfoBox" class="action-info-box">
+        <strong id="actionConfirmInfoTitle">What this does</strong>
+        <p id="actionConfirmInfoText">This action will immediately update the license state.</p>
+      </div>
+
+      <div class="action-confirm-section">
+        <span class="field-label">This will:</span>
+        <ul id="actionConfirmEffects" class="action-effects-list"></ul>
+      </div>
+
+      <div class="actions-row">
+        <button id="actionConfirmCancelButton" type="button" class="button button-secondary">Cancel</button>
+        <button id="actionConfirmSubmitButton" type="button" class="button button-primary">Confirm</button>
       </div>
     </div>
   </div>
@@ -465,7 +517,7 @@
 
       <div id="downloadsStatus" class="status-banner hidden"></div>
       <div id="downloadsCooldown" class="download-cooldown hidden"></div>
-      <section id="downloadAccessPanel" class="download-access-panel hidden">
+      <section id="downloadAccessPanel" class="download-access-panel hidden" data-card-info="Enter your buyer key here for protected builds.">
         <div class="download-access-copy">
           <strong id="downloadAccessTitle">Buyer-only download</strong>
           <p>This jar is limited to active buyers. Enter the same license user and key you use in the manage license section.</p>
@@ -499,7 +551,7 @@
       </div>
 
       <div class="edition-grid">
-        <article class="edition-card">
+        <article class="edition-card" data-card-info="Breakdown of the current Java check stack.">
           <div class="edition-head">
             <h3>Java</h3>
             <span class="edition-tag">Main stack</span>
@@ -595,7 +647,7 @@
           </div>
         </article>
 
-        <article class="edition-card">
+        <article class="edition-card" data-card-info="Breakdown of the current Bedrock check stack.">
           <div class="edition-head">
             <h3>Bedrock</h3>
             <span class="edition-tag">Live support</span>
@@ -648,7 +700,7 @@
             Official support covers Minecraft 1.13 to 1.21.11. Version 26.1 is early-tested and experimental. Older versions down to 1.8 can work, but they may run with reduced protection when some checks are not compatible.
           </p>
         </div>
-        <aside class="versions-software-card">
+        <aside class="versions-software-card" data-card-info="Main server software Nova is tested on.">
           <span class="meta-label">Server Software</span>
           <strong>Tested on Paper and Bukkit</strong>
           <p>Other server software has not been fully tested yet, so Paper and Bukkit are still the main verified targets.</p>
@@ -656,17 +708,17 @@
       </div>
 
       <div class="versions-band-grid">
-        <article class="version-band is-supported">
+        <article class="version-band is-supported" data-card-info="Main supported version range.">
           <span class="version-status">Officially supported</span>
           <strong>1.13 to 1.21.11</strong>
           <p>Main tested range for current Java servers.</p>
         </article>
-        <article class="version-band is-experimental">
+        <article class="version-band is-experimental" data-card-info="Works, but still early and less certain.">
           <span class="version-status">Experimental</span>
           <strong>26.1</strong>
           <p>Early-tested, usable, and still not fully guaranteed.</p>
         </article>
-        <article class="version-band is-legacy">
+        <article class="version-band is-legacy" data-card-info="Older range with lighter coverage when needed.">
           <span class="version-status">Legacy best effort</span>
           <strong>1.8 to 1.12</strong>
           <p>Can work with fewer checks when incompatible checks are disabled automatically.</p>
@@ -674,15 +726,15 @@
       </div>
 
       <div class="versions-fact-grid">
-        <article class="version-fact-card">
+        <article class="version-fact-card" data-card-info="Short note about the current main target.">
           <span class="meta-label">Modern target</span>
           <p>Modern Java servers are the main supported target for Nova.</p>
         </article>
-        <article class="version-fact-card">
+        <article class="version-fact-card" data-card-info="Short note about older server versions.">
           <span class="meta-label">Legacy behavior</span>
           <p>Nova does not claim full real-server 1.8 support because that range is not the main tested target.</p>
         </article>
-        <article class="version-fact-card">
+        <article class="version-fact-card" data-card-info="Short note about automatic compatibility changes.">
           <span class="meta-label">Compatibility mode</span>
           <p>Incompatible checks are disabled automatically, so protection can be lighter on older setups.</p>
         </article>

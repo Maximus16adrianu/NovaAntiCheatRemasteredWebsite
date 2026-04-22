@@ -50,6 +50,8 @@ const AUTH_FAILURE_ACTIONS = new Set([
   "auth_denied_username_mismatch",
   "auth_denied_license_disabled",
   "auth_denied_license_expired",
+  "auth_denied_device_blacklisted",
+  "auth_denied_instance_blacklisted",
   "hwid_limit_denied",
   "instance_limit_denied",
   "heartbeat_denied_license_missing",

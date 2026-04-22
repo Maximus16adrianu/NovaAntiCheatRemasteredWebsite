@@ -169,6 +169,32 @@ function initializeDatabase() {
       response_body TEXT NOT NULL DEFAULT '',
       FOREIGN KEY (license_id) REFERENCES licenses(id) ON DELETE SET NULL
     );
+
+    CREATE TABLE IF NOT EXISTS license_device_blacklist (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      license_id INTEGER NOT NULL,
+      hwid_hash TEXT NOT NULL,
+      device_name TEXT NOT NULL DEFAULT '',
+      details_json TEXT NOT NULL DEFAULT '{}',
+      created_at TEXT NOT NULL,
+      updated_at TEXT NOT NULL,
+      FOREIGN KEY (license_id) REFERENCES licenses(id) ON DELETE CASCADE,
+      UNIQUE (license_id, hwid_hash)
+    );
+
+    CREATE TABLE IF NOT EXISTS license_instance_blacklist (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      license_id INTEGER NOT NULL,
+      instance_uuid TEXT NOT NULL DEFAULT '',
+      instance_hash TEXT NOT NULL DEFAULT '',
+      instance_name TEXT NOT NULL DEFAULT '',
+      last_server_name TEXT NOT NULL DEFAULT '',
+      details_json TEXT NOT NULL DEFAULT '{}',
+      created_at TEXT NOT NULL,
+      updated_at TEXT NOT NULL,
+      FOREIGN KEY (license_id) REFERENCES licenses(id) ON DELETE CASCADE,
+      UNIQUE (license_id, instance_uuid)
+    );
   `);
 
   ensureColumn(db, "licenses", "license_type", "TEXT NOT NULL DEFAULT 'monthly'");
@@ -227,6 +253,8 @@ function initializeDatabase() {
     CREATE INDEX IF NOT EXISTS idx_audit_logs_license ON audit_logs (license_id, created_at);
     CREATE INDEX IF NOT EXISTS idx_webhook_notifications_license ON webhook_notifications (license_id, created_at);
     CREATE INDEX IF NOT EXISTS idx_download_jars_sort ON download_jars (sort_order, id);
+    CREATE INDEX IF NOT EXISTS idx_device_blacklist_license ON license_device_blacklist (license_id, hwid_hash);
+    CREATE INDEX IF NOT EXISTS idx_instance_blacklist_license ON license_instance_blacklist (license_id, instance_uuid, instance_hash);
   `);
 
   return db;
