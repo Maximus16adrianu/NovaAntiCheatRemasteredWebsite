@@ -25,6 +25,7 @@ const config = Object.freeze({
   defaultResetIntervalDays: Number.parseInt(process.env.DEFAULT_RESET_INTERVAL_DAYS || "30", 10),
   defaultHeartbeatSeconds: Number.parseInt(process.env.DEFAULT_HEARTBEAT_SECONDS || "10", 10),
   sessionStaleGraceSeconds: Number.parseInt(process.env.SESSION_STALE_GRACE_SECONDS || "10", 10),
+  initialSessionGraceSeconds: Number.parseInt(process.env.INITIAL_SESSION_GRACE_SECONDS || "60", 10),
   pluginSecureTransportRequired: String(process.env.PLUGIN_SECURE_TRANSPORT_REQUIRED || "false").toLowerCase() === "true",
   secureRequestMaxSkewSeconds: Number.parseInt(process.env.SECURE_REQUEST_MAX_SKEW_SECONDS || "180", 10)
 });

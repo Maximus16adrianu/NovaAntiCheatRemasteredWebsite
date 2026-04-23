@@ -198,23 +198,44 @@ function getSessionByToken(sessionToken) {
   return getDatabase().prepare("SELECT * FROM service_sessions WHERE session_token = ?").get(sessionToken);
 }
 
+function computeSessionTimeoutAt(session = {}) {
+  const lastHeartbeat = Date.parse(session.last_heartbeat_at);
+  if (!Number.isFinite(lastHeartbeat)) {
+    return Number.NaN;
+  }
+
+  const heartbeatWindowMs = ((session.heartbeat_interval_seconds || config.defaultHeartbeatSeconds) + config.sessionStaleGraceSeconds) * 1000;
+  const regularTimeoutAt = lastHeartbeat + heartbeatWindowMs;
+  const startedAt = Date.parse(session.started_at);
+  if (!Number.isFinite(startedAt)) {
+    return regularTimeoutAt;
+  }
+
+  const untouchedSession = Math.abs(lastHeartbeat - startedAt) < 1000;
+  if (!untouchedSession) {
+    return regularTimeoutAt;
+  }
+
+  const startupGraceTimeoutAt = startedAt + Math.max(config.initialSessionGraceSeconds, config.defaultHeartbeatSeconds) * 1000;
+  return Math.max(regularTimeoutAt, startupGraceTimeoutAt);
+}
+
 function reconcileSessions() {
   const db = getDatabase();
   const now = Date.now();
   const openSessions = db.prepare(`
-    SELECT session_token, last_heartbeat_at, heartbeat_interval_seconds
+    SELECT session_token, started_at, last_heartbeat_at, heartbeat_interval_seconds
       FROM service_sessions
      WHERE closed_at IS NULL
   `).all();
 
   for (const session of openSessions) {
-    const lastHeartbeat = Date.parse(session.last_heartbeat_at);
-    if (!Number.isFinite(lastHeartbeat)) {
+    const timeoutAt = computeSessionTimeoutAt(session);
+    if (!Number.isFinite(timeoutAt)) {
       closeSession(session.session_token, "heartbeat_timeout", { stale: true });
       continue;
     }
 
-    const timeoutAt = lastHeartbeat + ((session.heartbeat_interval_seconds || config.defaultHeartbeatSeconds) + config.sessionStaleGraceSeconds) * 1000;
     if (now > timeoutAt) {
       closeSession(session.session_token, "heartbeat_timeout", {
         stale: true,
@@ -228,6 +249,7 @@ module.exports = {
   closeAllSessions,
   closeOpenSessionsForInstance,
   closeSession,
+  computeSessionTimeoutAt,
   createSession,
   getSessionByToken,
   reconcileSessions,
