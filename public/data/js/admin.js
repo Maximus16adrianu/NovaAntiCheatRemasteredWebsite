@@ -2,7 +2,7 @@ const ADMIN_KEY_STORAGE = "novaac_admin_api_key";
 const PRICING = {
   monthly: { label: "Monthly", base: 5, addon: 1 },
   yearly: { label: "Yearly", base: 30, addon: 5 },
-  lifetime: { label: "Lifetime", base: 75, addon: 10 }
+  lifetime: { label: "Lifetime", base: 125, addon: 10 }
 };
 const TRUSTED_HTML = Symbol("trustedHtml");
 

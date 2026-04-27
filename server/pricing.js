@@ -24,7 +24,7 @@ const LICENSE_TYPES = Object.freeze({
     id: "lifetime",
     label: "Lifetime",
     durationDays: null,
-    basePriceEur: 75.0,
+    basePriceEur: 125.0,
     addonPriceEur: 10.0
   }
 });

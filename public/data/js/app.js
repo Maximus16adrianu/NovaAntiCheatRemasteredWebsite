@@ -19,11 +19,29 @@ const state = {
 const PRICING = {
   monthly: { label: "Monthly", base: 5, addon: 1 },
   yearly: { label: "Yearly", base: 30, addon: 5 },
-  lifetime: { label: "Lifetime", base: 75, addon: 10 }
+  lifetime: { label: "Lifetime", base: 125, addon: 10 }
 };
+const NOVA_CONSOLE_LINES = [
+  { tone: "flag", text: "[NAC] StraightTeledu failed Prediction (A) [VL:1] [*]", delay: 1450 },
+  { tone: "flag", text: "[NAC] KuroSense failed Auto Clicker (H) [VL:2] [*]", delay: 1600 },
+  { tone: "warn", text: "[NAC] KuroSense failed Auto Clicker (H) [VL:5] [*]", delay: 1350 },
+  { tone: "flag", text: "[NAC] Vexoria failed Reach (A) [VL:1] [*]", delay: 1750 },
+  { tone: "flag", text: "[NAC] Rainsprint failed Speed (C) [VL:3] [*]", delay: 1550 },
+  { tone: "warn", text: "[NAC] Rainsprint failed Speed (C) [VL:7] [*]", delay: 1400 },
+  { tone: "flag", text: "[NAC] NightByte failed Kill Aura (D) [VL:2] [*]", delay: 1700 },
+  { tone: "success", text: "[NAC] setback applied to Rainsprint for Speed (C)", delay: 1850 },
+  { tone: "flag", text: "[NAC] BedrockZ failed Timer (A) [VL:1] [*]", delay: 1650 },
+  { tone: "flag", text: "[NAC] PacketGhost failed BadPacket (M) [VL:4] [*]", delay: 1500 },
+  { tone: "warn", text: "[NAC] NightByte failed Kill Aura (D) [VL:8] [*]", delay: 1450 },
+  { tone: "flag", text: "[NAC] ClickPattern failed Auto Clicker (P) [VL:3] [*]", delay: 1600 },
+  { tone: "success", text: "[NAC] punishment queued for NightByte via Kill Aura (D)", delay: 1900 },
+  { tone: "flag", text: "[NAC] BridgeMode failed Scaffold (F) [VL:2] [*]", delay: 1700 }
+];
 const TRUSTED_HTML = Symbol("trustedHtml");
 
 const elements = {
+  topbar: document.querySelector(".topbar"),
+  novaConsoleLog: document.getElementById("novaConsoleLog"),
   mobileMenuButton: document.getElementById("mobileMenuButton"),
   closeMobileMenuButton: document.getElementById("closeMobileMenuButton"),
   mobileNavOverlay: document.getElementById("mobileNavOverlay"),
@@ -106,6 +124,9 @@ const elements = {
   openDownloadsButton: document.getElementById("openDownloadsButton"),
   downloadsModal: document.getElementById("downloadsModal"),
   closeDownloadsButton: document.getElementById("closeDownloadsButton"),
+  openTeamButton: document.getElementById("openTeamButton"),
+  teamModal: document.getElementById("teamModal"),
+  closeTeamButton: document.getElementById("closeTeamButton"),
   downloadsStatus: document.getElementById("downloadsStatus"),
   downloadsCooldown: document.getElementById("downloadsCooldown"),
   downloadsList: document.getElementById("downloadsList"),
@@ -1759,6 +1780,14 @@ function closeVersionsModal() {
   closeModal(elements.versionsModal);
 }
 
+function openTeamModal() {
+  openModal(elements.teamModal);
+}
+
+function closeTeamModal() {
+  closeModal(elements.teamModal);
+}
+
 function hasDownloadAccess() {
   return Boolean(state.downloadLicenseUser && state.downloadLicenseKey);
 }
@@ -2295,6 +2324,125 @@ function initAnchorScroll() {
   });
 }
 
+function initHeaderScrollState() {
+  if (!elements.topbar) {
+    return;
+  }
+
+  const update = () => {
+    elements.topbar.classList.toggle("is-scrolled", window.scrollY > 12);
+  };
+
+  update();
+  window.addEventListener("scroll", update, { passive: true });
+}
+
+function initRevealEffects() {
+  const targets = [...document.querySelectorAll(".landing-grid > .panel, .site-footer")];
+  if (targets.length === 0) {
+    return;
+  }
+
+  const prefersReducedMotion = window.matchMedia?.("(prefers-reduced-motion: reduce)")?.matches;
+  targets.forEach((target, index) => {
+    target.classList.add("reveal-on-scroll");
+    target.style.transitionDelay = prefersReducedMotion ? "0ms" : `${Math.min(index * 35, 160)}ms`;
+  });
+
+  if (prefersReducedMotion || !("IntersectionObserver" in window)) {
+    targets.forEach((target) => target.classList.add("is-visible"));
+    return;
+  }
+
+  const observer = new IntersectionObserver((entries) => {
+    entries.forEach((entry) => {
+      if (!entry.isIntersecting) {
+        return;
+      }
+      entry.target.classList.add("is-visible");
+      observer.unobserve(entry.target);
+    });
+  }, {
+    threshold: 0.12
+  });
+
+  targets.forEach((target) => observer.observe(target));
+}
+
+function formatConsoleTime(lineIndex) {
+  const baseSeconds = (19 * 60 * 60) + (51 * 60) + 49;
+  const totalSeconds = baseSeconds + lineIndex;
+  const hours = String(Math.floor(totalSeconds / 3600) % 24).padStart(2, "0");
+  const minutes = String(Math.floor(totalSeconds / 60) % 60).padStart(2, "0");
+  const seconds = String(totalSeconds % 60).padStart(2, "0");
+  return `[${hours}:${minutes}:${seconds} INFO]:`;
+}
+
+function appendNovaConsoleLine(container, entry, index) {
+  container.querySelector(".nova-console-cursor-line")?.remove();
+
+  const line = document.createElement("div");
+  line.className = `nova-console-line is-${entry.tone || "info"}`;
+
+  const time = document.createElement("span");
+  time.className = "nova-console-time";
+  time.textContent = formatConsoleTime(index);
+
+  const message = document.createElement("span");
+  message.className = "nova-console-message";
+  message.textContent = entry.text;
+
+  line.append(time, message);
+  container.appendChild(line);
+  container.scrollTop = container.scrollHeight;
+}
+
+function appendNovaConsoleCursor(container, lineIndex) {
+  container.querySelector(".nova-console-cursor-line")?.remove();
+
+  const line = document.createElement("div");
+  line.className = "nova-console-line nova-console-cursor-line";
+
+  const time = document.createElement("span");
+  time.className = "nova-console-time";
+  time.textContent = formatConsoleTime(lineIndex);
+
+  const message = document.createElement("span");
+  message.className = "nova-console-message";
+  message.textContent = "";
+
+  const cursor = document.createElement("span");
+  cursor.className = "nova-console-cursor";
+  message.appendChild(cursor);
+  line.append(time, message);
+  container.appendChild(line);
+}
+
+function initNovaConsole() {
+  const container = elements.novaConsoleLog;
+  if (!container) {
+    return;
+  }
+
+  const prefersReducedMotion = window.matchMedia?.("(prefers-reduced-motion: reduce)")?.matches;
+  let lineIndex = 0;
+
+  const run = () => {
+    const entry = NOVA_CONSOLE_LINES[lineIndex % NOVA_CONSOLE_LINES.length];
+    appendNovaConsoleLine(container, entry, lineIndex);
+    lineIndex += 1;
+
+    while (container.children.length > 70) {
+      container.firstElementChild?.remove();
+    }
+
+    appendNovaConsoleCursor(container, lineIndex);
+    window.setTimeout(run, prefersReducedMotion ? 1600 : entry.delay);
+  };
+
+  run();
+}
+
 elements.mobileMenuButton?.addEventListener("click", toggleMobileMenu);
 elements.closeMobileMenuButton?.addEventListener("click", closeMobileMenu);
 elements.mobileNavOverlay?.addEventListener("click", closeMobileMenu);
@@ -2343,6 +2491,8 @@ elements.openChecksButton?.addEventListener("click", openChecksModal);
 elements.closeChecksButton?.addEventListener("click", closeChecksModal);
 elements.openVersionsButton?.addEventListener("click", openVersionsModal);
 elements.closeVersionsButton?.addEventListener("click", closeVersionsModal);
+elements.openTeamButton?.addEventListener("click", openTeamModal);
+elements.closeTeamButton?.addEventListener("click", closeTeamModal);
 elements.openDownloadsButton?.addEventListener("click", () => {
   openDownloadsModal().catch((error) => {
     showDownloadStatus(error.message, "error");
@@ -2371,6 +2521,11 @@ elements.checksModal?.addEventListener("click", (event) => {
 elements.versionsModal?.addEventListener("click", (event) => {
   if (event.target === elements.versionsModal) {
     closeVersionsModal();
+  }
+});
+elements.teamModal?.addEventListener("click", (event) => {
+  if (event.target === elements.teamModal) {
+    closeTeamModal();
   }
 });
 [
@@ -2438,6 +2593,11 @@ document.addEventListener("keydown", (event) => {
     return;
   }
 
+  if (elements.teamModal && !elements.teamModal.classList.contains("hidden")) {
+    closeTeamModal();
+    return;
+  }
+
   if (elements.checksModal && !elements.checksModal.classList.contains("hidden")) {
     closeChecksModal();
   }
@@ -2456,4 +2616,7 @@ if (elements.calcSlots && elements.calcMonths) {
 }
 initCheckItems();
 initAnchorScroll();
+initHeaderScrollState();
+initRevealEffects();
+initNovaConsole();
 hydrateCardInfoDots(document);

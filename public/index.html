@@ -40,16 +40,31 @@
 
     <main class="landing-grid">
       <section class="panel hero-card">
-        <p class="section-pill">Nova</p>
-        <h2>Private anticheat for Java and Bedrock.</h2>
-        <p class="hero-copy">
-          Java is the main focus. Bedrock support is already there too, with prediction and movement checks already running.
-        </p>
-        <div class="hero-actions">
-          <a class="button button-primary" href="#checks-card">View checks</a>
-          <button id="openDownloadsButton" type="button" class="button button-secondary">Downloads</button>
-          <a class="button button-secondary" href="https://www.youtube.com/@CerialNovaDev" target="_blank" rel="noreferrer">YouTube</a>
-          <a class="button button-secondary" href="https://paypal.me/Cerials" target="_blank" rel="noreferrer">Open PayPal</a>
+        <div class="hero-layout">
+          <div class="hero-copy-block">
+            <p class="section-pill">Nova</p>
+            <h2>Private anticheat for Java and Bedrock.</h2>
+            <p class="hero-copy">
+              Java is the main focus. Bedrock support is already there too, with prediction and movement checks already running.
+            </p>
+            <div class="hero-actions">
+              <a class="button button-primary" href="#checks-card">View checks</a>
+              <button id="openDownloadsButton" type="button" class="button button-secondary">Downloads</button>
+              <a class="button button-secondary" href="https://www.youtube.com/@CerialNovaDev" target="_blank" rel="noreferrer">YouTube</a>
+              <a class="button button-secondary" href="https://paypal.me/Cerials" target="_blank" rel="noreferrer">Open PayPal</a>
+              <button id="openTeamButton" type="button" class="button button-secondary">Developers</button>
+            </div>
+          </div>
+
+          <aside class="nova-console" aria-label="Nova live flag console preview">
+            <div class="nova-console-head">
+              <span class="console-dot console-dot-danger"></span>
+              <span class="console-dot console-dot-warn"></span>
+              <span class="console-dot console-dot-ok"></span>
+              <span class="nova-console-title">LIVE FLAG FEED | NovaRemastered</span>
+            </div>
+            <div id="novaConsoleLog" class="nova-console-body" aria-live="polite"></div>
+          </aside>
         </div>
       </section>
 
@@ -63,12 +78,12 @@
           <article class="preview-stat-card">
             <span class="meta-label">Java combat</span>
             <strong>Large main stack</strong>
-            <p>Aim, reach, engines, aura, autoclicker, autototem and more.</p>
+            <p>Aim, reach, engines, aura, autoclicker, hitbox, autototem and more.</p>
           </article>
           <article class="preview-stat-card">
             <span class="meta-label">Java movement</span>
             <strong>Prediction-heavy</strong>
-            <p>Prediction, motion, speed, fly, invalid, sprint, no push and more.</p>
+            <p>Prediction, motion, speed, fly, blink, invalid, sprint, no push and more.</p>
           </article>
           <article class="preview-stat-card">
             <span class="meta-label">Packet</span>
@@ -163,7 +178,7 @@
           </article>
           <article class="pricing-card">
             <h3>Lifetime</h3>
-            <strong>&euro;75</strong>
+            <strong>&euro;125</strong>
             <p>Includes 1 HWID and 1 instance. Every extra package is &euro;10.</p>
           </article>
           <article class="pricing-card">
@@ -208,7 +223,7 @@
             </article>
             <article class="calc-result" data-plan="lifetime">
               <h4>Lifetime</h4>
-              <strong id="calcLifetimePrice">&euro;75</strong>
+              <strong id="calcLifetimePrice">&euro;125</strong>
               <p id="calcLifetimeMeta">One payment forever</p>
             </article>
           </div>
@@ -328,6 +343,13 @@
         </section>
       </section>
     </main>
+
+    <footer class="site-footer">
+      <p>Nova AntiCheat</p>
+      <nav class="footer-links" aria-label="Footer navigation">
+        <a href="/legal">Legal</a>
+      </nav>
+    </footer>
   </div>
 
   <div id="mobileNavOverlay" class="mobile-nav-overlay" aria-hidden="true"></div>
@@ -555,6 +577,41 @@
     </div>
   </div>
 
+  <div id="teamModal" class="modal hidden" aria-hidden="true">
+    <div class="modal-panel panel team-modal-panel">
+      <div class="downloads-head">
+        <div>
+          <p class="section-pill">Team</p>
+          <h3>Development Team</h3>
+          <p class="section-copy">Nova is developed by a small private team focused on detection quality, performance, protection and long-term support.</p>
+        </div>
+        <button id="closeTeamButton" type="button" class="button button-secondary">Close</button>
+      </div>
+
+      <div class="team-grid">
+        <article class="team-card">
+          <h4>Cerial</h4>
+          <p class="team-role">Founder / Lead Developer</p>
+          <p>
+            Works on Nova&rsquo;s core anticheat architecture, prediction systems, combat and movement checks, Java/Bedrock support, licensing and the web panel.
+          </p>
+        </article>
+        <article class="team-card">
+          <h4>GigaZelensky</h4>
+          <p class="team-role">Core Developer / Security Systems</p>
+          <p>
+            Creator of AntiSpoof-Pro and contributor to Nova&rsquo;s internal security, protection, tooling and client-integrity systems.
+          </p>
+          <div class="team-links" aria-label="GigaZelensky links">
+            <a href="https://antispoof.pro/" target="_blank" rel="noreferrer">AntiSpoof-Pro</a>
+            <a href="https://github.com/GigaZelensky/AntiSpoof" target="_blank" rel="noreferrer">GitHub</a>
+            <a href="https://builtbybit.com/resources/antispoof-pro-deep-probe-engine.69263/" target="_blank" rel="noreferrer">BuiltByBit</a>
+          </div>
+        </article>
+      </div>
+    </div>
+  </div>
+
   <div id="checksModal" class="modal hidden" aria-hidden="true">
     <div class="modal-panel panel checks-modal-panel">
       <div class="downloads-head">
@@ -578,13 +635,13 @@
             <ul class="check-list">
               <li><details class="check-item"><summary>Aim (A-X)</summary><div class="check-description">Looks for aim that turns too cleanly or snaps too hard.</div></details></li>
               <li><details class="check-item"><summary>Bow Aim (A)</summary><div class="check-description">Looks for bow aim that stays too clean or locks too fast.</div></details></li>
-              <li><details class="check-item"><summary>Auto Clicker (A-T)</summary><div class="check-description">Looks for click patterns that are too steady or too repeated.</div></details></li>
+              <li><details class="check-item"><summary>Auto Clicker (A-Z)</summary><div class="check-description">Looks for click patterns that are too steady or too repeated.</div></details></li>
               <li><details class="check-item"><summary>Auto Block (A-F)</summary><div class="check-description">Looks for blocking and hitting at times that should not happen together.</div></details></li>
               <li><details class="check-item"><summary>Kill Aura (A-G)</summary><div class="check-description">Looks for attack patterns that do not fit normal player input.</div></details></li>
               <li><details class="check-item"><summary>Crystal Aura (A-C)</summary><div class="check-description">Looks for crystal actions that are too fast or too clean.</div></details></li>
               <li><details class="check-item"><summary>Reach (A-B)</summary><div class="check-description">Looks for hits from farther away than they should be.</div></details></li>
               <li><details class="check-item"><summary>Container Reach (A)</summary><div class="check-description">Looks for opening containers from too far away.</div></details></li>
-              <li><details class="check-item"><summary>HitBox (A)</summary><div class="check-description">Checks if the hit really lines up with the target.</div></details></li>
+              <li><details class="check-item"><summary>HitBox (A-B)</summary><div class="check-description">Checks if the hit really lines up with the target and is not through blocked lines.</div></details></li>
               <li><details class="check-item"><summary>WTap (A)</summary><div class="check-description">Looks for repeated sprint resets around hits.</div></details></li>
               <li><details class="check-item"><summary>AutoTotem (A)</summary><div class="check-description">Looks for totem swaps that happen too fast.</div></details></li>
               <li><details class="check-item"><summary>Backtrack (A-B)</summary><div class="check-description">Looks for hits on old target positions instead of the real one.</div></details></li>
@@ -597,11 +654,13 @@
             <h4>Movement</h4>
             <ul class="check-list">
               <li><details class="check-item"><summary>Prediction (A)</summary><div class="check-description">Checks if movement matches normal vanilla physics.</div></details></li>
+              <li><details class="check-item"><summary>Blink (A)</summary><div class="check-description">Looks for delayed movement bursts and packet release patterns.</div></details></li>
+              <li><details class="check-item"><summary>Micro Blink (A)</summary><div class="check-description">Looks for short packet gaps that release movement too cleanly.</div></details></li>
               <li><details class="check-item"><summary>Motion (A-L)</summary><div class="check-description">Looks for jump and fall values that do not make sense.</div></details></li>
               <li><details class="check-item"><summary>Player Fly (A-D)</summary><div class="check-description">Looks for staying in the air longer than normal.</div></details></li>
               <li><details class="check-item"><summary>Elytra Fly (A-I)</summary><div class="check-description">Looks for elytra movement that is too fast or too controlled.</div></details></li>
               <li><details class="check-item"><summary>Vehicle Fly (A-C)</summary><div class="check-description">Looks for boats and mounts leaving normal movement.</div></details></li>
-              <li><details class="check-item"><summary>Player Speed (A-F)</summary><div class="check-description">Looks for moving faster than normal for the situation.</div></details></li>
+              <li><details class="check-item"><summary>Speed (A-F)</summary><div class="check-description">Looks for moving faster than normal for the situation.</div></details></li>
               <li><details class="check-item"><summary>Vehicle Speed (A)</summary><div class="check-description">Looks for vehicles going faster than they should.</div></details></li>
               <li><details class="check-item"><summary>Invalid (A-O)</summary><div class="check-description">Looks for movement states and values that do not make sense.</div></details></li>
               <li><details class="check-item"><summary>Invalid Vehicle (A-F)</summary><div class="check-description">Checks vehicle movement that does not make sense.</div></details></li>
@@ -627,7 +686,7 @@
               <li><details class="check-item"><summary>FastUse (A)</summary><div class="check-description">Looks for eating, drinking or using items too quickly.</div></details></li>
               <li><details class="check-item"><summary>ChestStealer (A)</summary><div class="check-description">Looks for chest looting that is too fast or too clean.</div></details></li>
               <li><details class="check-item"><summary>InventoryMove (A)</summary><div class="check-description">Looks for moving when your inventory should stop you.</div></details></li>
-              <li><details class="check-item"><summary>InventoryManager (A-B)</summary><div class="check-description">Looks for inventory actions done in an impossible order.</div></details></li>
+              <li><details class="check-item"><summary>InventoryManager (A)</summary><div class="check-description">Looks for inventory actions done in an impossible order.</div></details></li>
               <li><details class="check-item"><summary>Chat (A-C)</summary><div class="check-description">Looks for spam and automated chat.</div></details></li>
               <li><details class="check-item"><summary>Baritone (A)</summary><div class="check-description">Looks for pathing that matches movement bots.</div></details></li>
               <li><details class="check-item"><summary>Nuker (A)</summary><div class="check-description">Looks for block breaking that happens too fast or in the wrong order.</div></details></li>
@@ -654,7 +713,7 @@
           <div class="category-block">
             <h4>Packet</h4>
             <ul class="check-list">
-              <li><details class="check-item"><summary>BadPacket (A-U)</summary><div class="check-description">Looks for packet values and states that do not make sense.</div></details></li>
+              <li><details class="check-item"><summary>BadPacket (A-V)</summary><div class="check-description">Looks for packet values and states that do not make sense.</div></details></li>
               <li><details class="check-item"><summary>PacketOrder (A-M)</summary><div class="check-description">Looks for packets sent in the wrong order.</div></details></li>
               <li><details class="check-item"><summary>Timer (A-D)</summary><div class="check-description">Looks for clients running faster than normal.</div></details></li>
               <li><details class="check-item"><summary>PingSpoof (A)</summary><div class="check-description">Looks for fake ping and delayed timing.</div></details></li>
@@ -682,7 +741,7 @@
             <ul class="check-list">
               <li><details class="check-item"><summary>Prediction (A)</summary><div class="check-description">Checks if movement matches the normal model.</div></details></li>
               <li><details class="check-item"><summary>Player Fly (A-B)</summary><div class="check-description">Looks for staying in the air too long.</div></details></li>
-              <li><details class="check-item"><summary>Player Speed (A)</summary><div class="check-description">Looks for moving too fast.</div></details></li>
+              <li><details class="check-item"><summary>Speed (A)</summary><div class="check-description">Looks for moving too fast.</div></details></li>
               <li><details class="check-item"><summary>Step (A-B)</summary><div class="check-description">Looks for step height above normal limits.</div></details></li>
               <li><details class="check-item"><summary>Jesus (A)</summary><div class="check-description">Looks for walking on water.</div></details></li>
               <li><details class="check-item"><summary>FastLadder (A)</summary><div class="check-description">Looks for climbing too fast.</div></details></li>

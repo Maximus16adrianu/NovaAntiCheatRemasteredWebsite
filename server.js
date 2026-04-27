@@ -38,6 +38,7 @@ app.use("/api/admin", createAdminRouter());
 
 app.use(express.static(config.publicDir, { extensions: ["html"] }));
 app.get("/", (_req, res) => res.sendFile(path.join(config.publicDir, "index.html")));
+app.get("/legal", (_req, res) => res.sendFile(path.join(config.publicDir, "legal.html")));
 app.get("/reset", (_req, res) => res.sendFile(path.join(config.publicDir, "index.html")));
 app.get("/admin", (_req, res) => res.sendFile(path.join(config.publicDir, "admin.html")));
 
