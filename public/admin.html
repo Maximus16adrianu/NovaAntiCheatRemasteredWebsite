@@ -1,0 +1,597 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Nova AntiCheat | Admin</title>
+  <link rel="icon" type="image/png" href="/nova.png">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@500;700&family=Manrope:wght@400;500;700&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="/data/css/admin.css">
+</head>
+<body>
+  <div class="admin-shell">
+    <header class="admin-topbar">
+      <div class="brand-block">
+        <img class="brand-mark" src="/nova.png" alt="Nova AntiCheat logo">
+        <div>
+          <p class="eyebrow">Nova AntiCheat</p>
+          <h1>Admin</h1>
+        </div>
+      </div>
+      <div class="topbar-actions">
+        <a class="ghost-link" href="/">Open site</a>
+        <button id="logoutButton" class="button button-secondary" type="button">Logout</button>
+      </div>
+    </header>
+
+    <main class="admin-layout">
+      <section id="authPanel" class="panel auth-panel">
+        <p class="section-label">Access</p>
+        <h2>Your admin API key</h2>
+        <p class="section-note">This browser stores the key locally for this page only.</p>
+
+        <form id="loginForm" class="stack-form">
+          <label class="field-label" for="apiKey">Your admin API key</label>
+          <div class="input-row">
+            <input id="apiKey" type="password" autocomplete="current-password" placeholder="Your admin API key" required>
+            <button type="submit" class="button button-primary">Open admin</button>
+          </div>
+        </form>
+
+        <div id="authStatus" class="status-banner hidden"></div>
+      </section>
+
+      <section id="adminPanel" class="hidden">
+        <section class="stats-grid">
+          <article class="panel stat-card">
+            <span>Total licenses</span>
+            <strong id="statTotalLicenses">0</strong>
+          </article>
+          <article class="panel stat-card">
+            <span>Active licenses</span>
+            <strong id="statActiveLicenses">0</strong>
+          </article>
+          <article class="panel stat-card">
+            <span>Expired licenses</span>
+            <strong id="statExpiredLicenses">0</strong>
+          </article>
+          <article class="panel stat-card">
+            <span>Active devices</span>
+            <strong id="statActiveDevices">0</strong>
+          </article>
+          <article class="panel stat-card">
+            <span>Active instances</span>
+            <strong id="statActiveInstances">0</strong>
+          </article>
+          <article class="panel stat-card">
+            <span>Open sessions</span>
+            <strong id="statOpenSessions">0</strong>
+          </article>
+        </section>
+
+        <section class="ops-grid">
+          <article class="panel lockdown-panel">
+            <div class="section-head">
+              <div>
+                <p class="section-label">Lockdown</p>
+                <h2>Emergency cutoff</h2>
+                <p class="section-note">Immediately stop plugin auth, downloads, self-service actions and admin data changes.</p>
+              </div>
+              <div id="lockdownStateBadge" class="badge">Normal</div>
+            </div>
+
+            <div class="lockdown-layout">
+              <label class="lockdown-field" for="lockdownReasonField">
+                <span class="field-label">Reason</span>
+                <textarea id="lockdownReasonField" rows="3" placeholder="Optional reason shown in API errors and the admin panel"></textarea>
+              </label>
+
+              <div class="lockdown-summary">
+                <div class="summary-item">
+                  <span>Status</span>
+                  <strong id="lockdownStatusText">Normal</strong>
+                </div>
+                <div class="summary-item">
+                  <span>Since</span>
+                  <strong id="lockdownSinceText">-</strong>
+                </div>
+                <div class="summary-item">
+                  <span>Message</span>
+                  <strong id="lockdownReasonText">-</strong>
+                </div>
+              </div>
+            </div>
+
+            <div class="actions-row">
+              <button id="toggleLockdownButton" type="button" class="button button-danger">Enable lockdown</button>
+              <button id="refreshLockdownButton" type="button" class="button button-secondary">Refresh lockdown</button>
+            </div>
+          </article>
+        </section>
+
+        <div id="adminStatus" class="status-banner hidden"></div>
+
+        <section class="workspace-grid">
+          <article class="panel table-panel">
+            <div class="section-head">
+              <div>
+                <p class="section-label">Licenses</p>
+                <h2>All licenses</h2>
+                <p class="section-note">Search, open, extend or delete.</p>
+              </div>
+              <div class="toolbar">
+                <button id="refreshDataButton" type="button" class="button button-secondary">Refresh all</button>
+                <button id="reconcileSessionsButton" type="button" class="button button-secondary">Reconcile sessions</button>
+                <button id="backupButton" type="button" class="button button-secondary">Backup</button>
+              </div>
+            </div>
+
+            <div class="table-toolbar">
+              <input id="licenseSearch" class="search-input" type="search" placeholder="Search by key, user or display name">
+            </div>
+
+            <div class="table-scroll">
+              <table class="data-table">
+                <thead>
+                  <tr>
+                    <th>Key</th>
+                    <th>User</th>
+                    <th>Term</th>
+                    <th>Limits</th>
+                    <th>Status</th>
+                    <th>Price</th>
+                    <th>Actions</th>
+                  </tr>
+                </thead>
+                <tbody id="licensesTableBody"></tbody>
+              </table>
+            </div>
+          </article>
+
+          <article class="panel editor-panel">
+            <div class="section-head">
+              <div>
+                <p class="section-label">Editor</p>
+                <h2 id="licenseFormHeading">Create license</h2>
+                <p class="section-note">Set the term, slot cap and notes, then save.</p>
+              </div>
+              <div class="toolbar">
+                <button id="resetFormButton" type="button" class="button button-secondary">New license</button>
+              </div>
+            </div>
+
+            <div id="selectedLicenseSummary" class="summary-card hidden">
+              <div class="summary-item">
+                <span>Key</span>
+                <strong id="summaryKey">-</strong>
+              </div>
+              <div class="summary-item">
+                <span>User</span>
+                <strong id="summaryUser">-</strong>
+              </div>
+              <div class="summary-item">
+                <span>Term</span>
+                <strong id="summaryType">-</strong>
+              </div>
+              <div class="summary-item">
+                <span>Limits</span>
+                <strong id="summaryLimits">-</strong>
+              </div>
+              <div class="summary-item">
+                <span>Status</span>
+                <strong id="summaryStatus">-</strong>
+              </div>
+              <div class="summary-item">
+                <span>Expiry</span>
+                <strong id="summaryExpiry">-</strong>
+              </div>
+            </div>
+
+            <form id="licenseForm" class="stack-form">
+              <input id="licenseId" type="hidden">
+
+              <label class="field-label" for="licenseKeyField">License key</label>
+              <input id="licenseKeyField" type="text" autocomplete="off" spellcheck="false" placeholder="Leave empty to auto-generate">
+
+              <label class="field-label" for="customerUsernameField">Username</label>
+              <input id="customerUsernameField" type="text" autocomplete="off" spellcheck="false" placeholder="Minecraft username">
+
+              <label class="field-label" for="displayNameField">Display name</label>
+              <input id="displayNameField" type="text" autocomplete="off" spellcheck="false" placeholder="Optional internal label">
+
+              <div class="split-fields">
+                <div>
+                  <label class="field-label" for="licenseTypeField">License type</label>
+                  <select id="licenseTypeField">
+                    <option value="monthly">Monthly</option>
+                    <option value="yearly">Yearly</option>
+                    <option value="lifetime">Lifetime</option>
+                  </select>
+                </div>
+                <div>
+                  <label class="field-label">Expiry</label>
+                  <div id="expiryPreviewCard" class="preview-card">
+                    <span id="expiryPreviewLabel">Expires at</span>
+                    <strong id="expiryPreviewValue">-</strong>
+                    <p id="expiryPreviewMeta">Monthly and yearly terms set this automatically.</p>
+                  </div>
+                </div>
+              </div>
+
+              <div class="split-fields">
+                <div>
+                  <label class="field-label" for="licensePlanField">License plan</label>
+                  <select id="licensePlanField">
+                    <option value="basic">Basic</option>
+                    <option value="pro">Pro</option>
+                  </select>
+                </div>
+                <div>
+                  <label class="field-label" for="cloudPlayerSlotsField">Pro player cap</label>
+                  <select id="cloudPlayerSlotsField">
+                    <option value="25">Max 25 players</option>
+                    <option value="50">Max 50 players</option>
+                    <option value="75">Max 75 players</option>
+                  </select>
+                  <p class="field-help">Pro monthly/yearly only. Lifetime is Basic only.</p>
+                </div>
+              </div>
+
+              <div class="split-fields">
+                <div>
+                  <label class="field-label" for="maxSlotsField">Package size</label>
+                  <input id="maxSlotsField" type="number" min="1" max="100" value="1" required>
+                  <p class="field-help">Each +1 adds 1 HWID and 1 instance.</p>
+                </div>
+                <div>
+                  <label class="field-label" for="resetIntervalField">Reset cooldown days</label>
+                  <input id="resetIntervalField" type="number" min="1" max="365" value="30" required>
+                </div>
+              </div>
+
+              <div class="preview-card">
+                <span>Suggested price</span>
+                <strong id="pricePreviewTotal">&euro;5</strong>
+                <p id="pricePreviewMeta">Monthly base &euro;5</p>
+              </div>
+
+              <label class="field-label" for="notesField">Notes</label>
+              <textarea id="notesField" rows="5" placeholder="Optional internal notes"></textarea>
+
+              <label class="checkbox-row">
+                <input id="activeField" type="checkbox" checked>
+                <span>License active</span>
+              </label>
+
+              <div class="actions-row">
+                <button id="saveLicenseButton" type="submit" class="button button-primary">Save license</button>
+                <button id="deleteLicenseButton" type="button" class="button button-danger" disabled>Delete current</button>
+              </div>
+            </form>
+          </article>
+        </section>
+
+        <section class="tool-grid">
+          <article class="panel tool-card">
+            <p class="section-label">Inspector</p>
+            <h3>License Inspector</h3>
+            <p class="section-note">Open the selected license in a separate device and instance GUI.</p>
+            <button id="openInspectorButton" type="button" class="button button-primary">Open inspector</button>
+          </article>
+
+          <article class="panel tool-card">
+            <p class="section-label">Downloads</p>
+            <h3>Jar Manager</h3>
+            <p class="section-note">Upload builds, edit release info and mark the recommended jar.</p>
+            <button id="openJarManagerButton" type="button" class="button button-primary">Open jars</button>
+          </article>
+
+          <article class="panel tool-card">
+            <p class="section-label">Sessions</p>
+            <h3>Live Activity</h3>
+            <p class="section-note">Review recent sessions without stretching the main dashboard.</p>
+            <button id="openSessionsButton" type="button" class="button button-primary">Open sessions</button>
+          </article>
+
+          <article class="panel tool-card">
+            <p class="section-label">Audit</p>
+            <h3>Audit Logs</h3>
+            <p class="section-note">Search resets, auth denials, webhook changes and lockdown actions.</p>
+            <button id="openAuditButton" type="button" class="button button-primary">Open logs</button>
+          </article>
+        </section>
+      </section>
+    </main>
+  </div>
+
+  <div id="inspectorModal" class="modal hidden" aria-hidden="true">
+    <div class="modal-panel panel wide-modal">
+      <div class="section-head">
+        <div>
+          <p class="section-label">Inspector</p>
+          <h2>License inspector</h2>
+          <p class="section-note">Registered devices and stored instances for the selected license.</p>
+        </div>
+        <button id="closeInspectorButton" type="button" class="button button-secondary">Close</button>
+      </div>
+
+      <section class="detail-grid modal-detail-grid">
+        <article class="panel detail-panel">
+          <div class="section-head">
+            <div>
+              <p class="section-label">Devices</p>
+              <h2 id="devicesHeading">Devices</h2>
+              <p id="devicesSubheading" class="section-note">Open a license to inspect registered HWIDs.</p>
+            </div>
+            <div class="toolbar">
+              <button id="refreshDevicesButton" type="button" class="button button-secondary" disabled>Refresh</button>
+              <button id="resetDevicesButton" type="button" class="button button-primary" disabled>Reset selected</button>
+            </div>
+          </div>
+
+          <div class="table-scroll">
+            <table class="data-table compact-table">
+              <thead>
+                <tr>
+                  <th>Pick</th>
+                  <th>Device</th>
+                  <th>Status</th>
+                  <th>Sessions</th>
+                  <th>Last user</th>
+                  <th>First seen</th>
+                  <th>Last seen</th>
+                  <th>HWID</th>
+                </tr>
+              </thead>
+              <tbody id="devicesTableBody"></tbody>
+            </table>
+          </div>
+        </article>
+
+        <article class="panel detail-panel">
+          <div class="section-head">
+            <div>
+              <p class="section-label">Instances</p>
+              <h2 id="instancesHeading">Instances</h2>
+              <p id="instancesSubheading" class="section-note">Open a license to inspect registered server instances.</p>
+            </div>
+            <div class="toolbar">
+              <button id="refreshInstancesButton" type="button" class="button button-secondary" disabled>Refresh</button>
+              <button id="resetInstancesButton" type="button" class="button button-primary" disabled>Reset selected</button>
+            </div>
+          </div>
+
+          <div class="table-scroll">
+            <table class="data-table compact-table">
+              <thead>
+                <tr>
+                  <th>Pick</th>
+                  <th>Instance</th>
+                  <th>Status</th>
+                  <th>Sessions</th>
+                  <th>Device</th>
+                  <th>Server</th>
+                  <th>First seen</th>
+                  <th>Last seen</th>
+                </tr>
+              </thead>
+              <tbody id="instancesTableBody"></tbody>
+            </table>
+          </div>
+        </article>
+      </section>
+    </div>
+  </div>
+
+  <div id="jarManagerModal" class="modal hidden" aria-hidden="true">
+    <div class="modal-panel panel wide-modal">
+      <div class="section-head">
+        <div>
+          <p class="section-label">Downloads</p>
+          <h2>Jar manager</h2>
+          <p class="section-note">Upload jars, edit release info and reorder what shows on the public site.</p>
+        </div>
+        <button id="closeJarManagerButton" type="button" class="button button-secondary">Close</button>
+      </div>
+
+      <section class="jar-grid modal-jar-grid">
+        <form id="jarUploadForm" class="panel jar-upload-card stack-form">
+          <div>
+            <label class="field-label" for="jarFileField">Jar file</label>
+            <input id="jarFileField" type="file" accept=".jar,application/java-archive,application/octet-stream" required>
+            <p class="field-help">Each upload stores the jar inside the private server folder.</p>
+          </div>
+
+          <div>
+            <label class="field-label" for="jarNameField">Public name</label>
+            <input id="jarNameField" type="text" autocomplete="off" spellcheck="false" placeholder="Nova 1.21.11 Build">
+          </div>
+
+          <div>
+            <label class="field-label" for="jarNoteField">Public note</label>
+            <textarea id="jarNoteField" rows="4" placeholder="Optional note shown in the public download list"></textarea>
+          </div>
+
+          <div>
+            <label class="field-label" for="jarVersionsField">Supported versions</label>
+            <input id="jarVersionsField" type="text" autocomplete="off" spellcheck="false" placeholder="1.13-1.21.11, 1.8 legacy">
+          </div>
+
+          <div>
+            <label class="field-label" for="jarChannelField">Release channel</label>
+            <select id="jarChannelField">
+              <option value="stable" selected>Stable</option>
+              <option value="beta">Beta</option>
+              <option value="legacy">Legacy</option>
+            </select>
+          </div>
+
+          <div>
+            <label class="field-label" for="jarChangelogField">Changelog</label>
+            <textarea id="jarChangelogField" rows="5" placeholder="What changed in this build?"></textarea>
+          </div>
+
+          <div>
+            <label class="field-label" for="jarAccessField">Download access</label>
+            <select id="jarAccessField">
+              <option value="buyers" selected>Buyers only</option>
+              <option value="public">Everybody</option>
+            </select>
+            <p class="field-help">Buyers only is the default. Public jars can be downloaded without a license.</p>
+          </div>
+
+          <label class="checkbox-row">
+            <input id="jarRecommendedField" type="checkbox">
+            <span>Mark as the latest recommended build</span>
+          </label>
+
+          <div class="actions-row">
+            <button id="uploadJarButton" type="submit" class="button button-primary">Upload jar</button>
+          </div>
+        </form>
+
+        <div class="jar-manager-card">
+          <div class="jar-manager-head">
+            <div>
+              <h3>Uploaded jars</h3>
+              <p class="section-note">Drag rows to reorder them. Open one when you want to edit the jar details.</p>
+            </div>
+            <span id="jarCountChip" class="jar-count-chip">0 jars</span>
+          </div>
+
+          <div id="jarList" class="jar-list"></div>
+        </div>
+      </section>
+    </div>
+  </div>
+
+  <div id="sessionsModal" class="modal hidden" aria-hidden="true">
+    <div class="modal-panel panel wide-modal">
+      <div class="section-head">
+        <div>
+          <p class="section-label">Sessions</p>
+          <h2>Recent sessions</h2>
+          <p class="section-note">Most recent activity across all licenses.</p>
+        </div>
+        <div class="toolbar">
+          <button id="refreshSessionsButton" type="button" class="button button-secondary">Refresh</button>
+          <button id="closeSessionsButton" type="button" class="button button-secondary">Close</button>
+        </div>
+      </div>
+
+      <div class="table-scroll">
+        <table class="data-table">
+          <thead>
+            <tr>
+              <th>License</th>
+              <th>Instance</th>
+              <th>Device</th>
+              <th>Server</th>
+              <th>Status</th>
+              <th>Heartbeat</th>
+              <th>Close reason</th>
+            </tr>
+          </thead>
+          <tbody id="sessionsTableBody"></tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+
+  <div id="auditModal" class="modal hidden" aria-hidden="true">
+    <div class="modal-panel panel wide-modal">
+      <div class="section-head">
+        <div>
+          <p class="section-label">Audit</p>
+          <h2>Audit logs</h2>
+          <p class="section-note">Filter plugin auth, resets, admin actions and lockdown changes.</p>
+        </div>
+        <div class="toolbar">
+          <button id="refreshAuditLogsButton" type="button" class="button button-secondary">Refresh</button>
+          <button id="closeAuditButton" type="button" class="button button-secondary">Close</button>
+        </div>
+      </div>
+
+      <div class="audit-filter-grid">
+        <input id="auditSearchField" class="search-input" type="search" placeholder="Search key, user, action or details">
+        <select id="auditActorField">
+          <option value="">All actors</option>
+        </select>
+        <select id="auditActionField">
+          <option value="">All actions</option>
+        </select>
+        <input id="auditLimitField" type="number" min="10" max="500" value="150">
+      </div>
+
+      <div class="table-scroll">
+        <table class="data-table">
+          <thead>
+            <tr>
+              <th>When</th>
+              <th>Actor</th>
+              <th>Action</th>
+              <th>License</th>
+              <th>Details</th>
+            </tr>
+          </thead>
+          <tbody id="auditLogsTableBody"></tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+
+  <div id="adminActionConfirmModal" class="modal hidden" aria-hidden="true">
+    <div class="modal-panel panel confirm-panel">
+      <div class="section-head">
+        <div>
+          <p id="adminActionConfirmPill" class="section-label">Confirm</p>
+          <h2 id="adminActionConfirmTitle">Confirm action</h2>
+          <p id="adminActionConfirmDescription" class="section-note">Review what this action changes before you continue.</p>
+        </div>
+        <button id="closeAdminActionConfirmButton" type="button" class="button button-secondary">Close</button>
+      </div>
+
+      <div id="adminActionConfirmInfoBox" class="action-info-box info">
+        <strong id="adminActionConfirmInfoTitle">What this does</strong>
+        <p id="adminActionConfirmInfoText">This action updates admin data immediately.</p>
+      </div>
+
+      <div class="confirm-section">
+        <span class="field-label">This will:</span>
+        <ul id="adminActionConfirmEffects" class="action-effects-list"></ul>
+      </div>
+
+      <div class="actions-row">
+        <button id="adminActionConfirmCancelButton" type="button" class="button button-secondary">Cancel</button>
+        <button id="adminActionConfirmSubmitButton" type="button" class="button button-primary">Confirm</button>
+      </div>
+    </div>
+  </div>
+
+  <div id="downloadKeyModal" class="modal hidden" aria-hidden="true">
+    <div class="modal-panel panel">
+      <div class="section-head">
+        <div>
+          <p class="section-label">Backup</p>
+          <h2>Download backup</h2>
+          <p class="section-note">Enter the extra download API key to export the live backup.</p>
+        </div>
+      </div>
+
+      <form id="downloadKeyForm" class="stack-form">
+        <label class="field-label" for="downloadKeyInput">Download API key</label>
+        <input id="downloadKeyInput" type="password" autocomplete="off" placeholder="Download API key" required>
+
+        <div class="actions-row">
+          <button type="submit" class="button button-primary">Download</button>
+          <button id="cancelDownloadButton" type="button" class="button button-secondary">Cancel</button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <script src="/data/js/admin.js"></script>
+</body>
+</html>

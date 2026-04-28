@@ -1,0 +1,15 @@
+package me.cerial.nova.cloudcombat.engine;
+
+public enum CombatSignalType {
+    ATTACK_PACKET,
+    ATTACK_CONFIRMED,
+    ROTATION_PACKET,
+    SWING_PACKET,
+    BLOCK_OR_USE_PACKET,
+    DIGGING_PACKET,
+    INVENTORY_PACKET,
+    TARGET_SWITCH,
+    INSTANT_ROTATION_ATTACK,
+    FAST_SWITCH_REACTION,
+    CHECK_DELTA
+}

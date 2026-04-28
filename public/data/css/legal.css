@@ -1,0 +1,147 @@
+.legal-page {
+  --topbar-offset: 72px;
+}
+
+.legal-page .topbar,
+.legal-page .site-footer {
+  max-width: 980px;
+}
+
+.legal-page .topbar {
+  padding: 10px 14px;
+  border-radius: 0 0 16px 16px;
+}
+
+.legal-page .brand-lockup {
+  gap: 12px;
+}
+
+.legal-page .brand-mark {
+  width: 42px;
+  height: 42px;
+  flex-basis: 42px;
+}
+
+.legal-page .brand-lockup h1 {
+  font-size: 1.32rem;
+}
+
+.legal-page .ghost-link {
+  padding: 9px 12px;
+}
+
+.legal-grid {
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: 16px;
+  max-width: 980px;
+  margin: 0 auto;
+}
+
+.legal-panel {
+  padding: 22px;
+}
+
+.legal-panel h2,
+.legal-panel h3 {
+  margin: 0 0 12px;
+  font-family: "Space Grotesk", sans-serif;
+}
+
+.legal-panel h2 {
+  font-size: clamp(1.8rem, 4vw, 2.55rem);
+  line-height: 1.08;
+}
+
+.legal-section {
+  margin-top: 22px;
+  padding-top: 18px;
+  border-top: 1px solid var(--border-soft);
+}
+
+.legal-section h3 {
+  font-size: 1.05rem;
+}
+
+.legal-section p,
+.legal-info-card p {
+  margin: 0;
+  color: var(--muted);
+  line-height: 1.65;
+}
+
+.legal-section p + p {
+  margin-top: 10px;
+}
+
+.legal-data-list {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 8px 14px;
+  margin: 14px 0;
+  padding: 0;
+  list-style: none;
+}
+
+.legal-data-list li {
+  position: relative;
+  padding-left: 16px;
+  color: var(--muted);
+  line-height: 1.55;
+}
+
+.legal-data-list li::before {
+  content: "";
+  position: absolute;
+  top: 0.72em;
+  left: 0;
+  width: 5px;
+  height: 5px;
+  border-radius: 999px;
+  background: var(--purple);
+}
+
+.legal-contact-grid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 12px;
+  margin-top: 12px;
+}
+
+.legal-info-card {
+  padding: 16px;
+  border: 1px solid var(--border-soft);
+  border-radius: 14px;
+  background: var(--panel-soft);
+}
+
+.legal-info-card strong {
+  display: block;
+  margin-top: 6px;
+  font-family: "Space Grotesk", sans-serif;
+}
+
+.legal-panel a {
+  color: var(--muted);
+  border-bottom: 1px solid rgba(157, 92, 255, 0.45);
+  transition: color 0.16s ease, border-color 0.16s ease;
+}
+
+.legal-panel a:hover,
+.legal-panel a:focus-visible {
+  color: var(--text);
+  border-color: rgba(216, 196, 255, 0.8);
+}
+
+@media (max-width: 1100px) {
+  .legal-contact-grid,
+  .legal-data-list {
+    grid-template-columns: 1fr;
+  }
+}
+
+@media (max-width: 780px) {
+  .legal-page {
+    --topbar-offset: 64px;
+  }
+}
