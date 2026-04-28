@@ -68,9 +68,7 @@ function startCombatCloudProcess() {
   }
 
   combatCloudProcess.on("spawn", () => {
-    if (config.combatCloudLogging) {
-      console.log(`[NovaAC Website] Combat cloud started on ${config.combatCloudHost}:${config.combatCloudPort}`);
-    }
+    console.log(`[NovaAC Website] Combat cloud started on ${config.combatCloudHost}:${config.combatCloudPort}`);
   });
 
   combatCloudProcess.on("error", (error) => {

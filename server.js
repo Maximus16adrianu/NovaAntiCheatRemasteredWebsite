@@ -21,6 +21,7 @@ processExpiringLicenseNotifications().catch((error) => {
 
 const app = express();
 app.disable("x-powered-by");
+app.set("trust proxy", config.trustProxy);
 
 app.use(requestIdMiddleware);
 app.use(express.json({ limit: "1mb" }));

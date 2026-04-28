@@ -5,6 +5,20 @@ const dotenv = require("dotenv");
 const ROOT_DIR = path.resolve(__dirname, "..");
 dotenv.config({ path: path.join(ROOT_DIR, ".env") });
 
+function parseTrustProxy(value) {
+  const normalized = String(value ?? "loopback").trim().toLowerCase();
+  if (normalized === "false" || normalized === "0" || normalized === "off") {
+    return false;
+  }
+  if (normalized === "true" || normalized === "on") {
+    return true;
+  }
+  if (/^\d+$/.test(normalized)) {
+    return Number.parseInt(normalized, 10);
+  }
+  return value || "loopback";
+}
+
 const config = Object.freeze({
   rootDir: ROOT_DIR,
   publicDir: path.join(ROOT_DIR, "public"),
@@ -26,6 +40,7 @@ const config = Object.freeze({
   dbFilePath: path.join(ROOT_DIR, "database", "novaac.db"),
   port: Number.parseInt(process.env.PORT || "3003", 10),
   host: process.env.HOST || "0.0.0.0",
+  trustProxy: parseTrustProxy(process.env.TRUST_PROXY),
   adminApiKey: process.env.ADMIN_API_KEY || "change-me-admin-key",
   downloadApiKey: process.env.DOWNLOAD_API_KEY || "",
   defaultResetIntervalDays: Number.parseInt(process.env.DEFAULT_RESET_INTERVAL_DAYS || "30", 10),
