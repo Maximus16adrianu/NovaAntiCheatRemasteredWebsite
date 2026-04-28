@@ -6,6 +6,7 @@ const { initializeDatabase, closeDatabase } = require("./server/database");
 const { requestIdMiddleware, apiNotFoundHandler, apiErrorHandler } = require("./server/middleware");
 const { createApiRouter } = require("./server/routes/api");
 const { createAdminRouter } = require("./server/routes/admin");
+const { startCombatCloudProcess, stopCombatCloudProcess } = require("./server/combat-cloud-process");
 const { getPluginSecureTransportInfo, initializePluginSecureTransport } = require("./server/secure-transport");
 const { reconcileSessions } = require("./server/sessions");
 
@@ -13,6 +14,7 @@ ensureDirectories();
 initializeDatabase();
 reconcileSessions();
 initializePluginSecureTransport();
+startCombatCloudProcess();
 processExpiringLicenseNotifications().catch((error) => {
   console.error("[NovaAC Website] Initial expiry notification scan failed:", error);
 });
@@ -39,6 +41,7 @@ app.use("/api/admin", createAdminRouter());
 app.use(express.static(config.publicDir, { extensions: ["html"] }));
 app.get("/", (_req, res) => res.sendFile(path.join(config.publicDir, "index.html")));
 app.get("/legal", (_req, res) => res.sendFile(path.join(config.publicDir, "legal.html")));
+app.get(["/terms", "/tos"], (_req, res) => res.sendFile(path.join(config.publicDir, "terms.html")));
 app.get("/reset", (_req, res) => res.sendFile(path.join(config.publicDir, "index.html")));
 app.get("/admin", (_req, res) => res.sendFile(path.join(config.publicDir, "admin.html")));
 
@@ -74,6 +77,7 @@ function shutdown(signal) {
   console.log(`[NovaAC Website] ${signal} received, shutting down...`);
   clearInterval(reconcileTimer);
   clearInterval(expiryNotificationTimer);
+  stopCombatCloudProcess();
 
   server.close(() => {
     closeDatabase();

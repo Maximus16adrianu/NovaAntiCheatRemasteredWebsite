@@ -1,0 +1,8 @@
+bind-host: "127.0.0.1"
+port: 47564
+verbose: false
+touchpad-compatibility: true
+telemetry:
+  enabled: false
+  hardware: "UNKNOWN"
+  file: "combat_telemetry.csv"
