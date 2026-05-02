@@ -64,9 +64,7 @@ function createApiRouter() {
       const result = activateLicense({
         licenseKey: req.body.licenseKey,
         username: req.body.username,
-        pcName: req.body.pcName,
         hwid: req.body.hwid,
-        machine: req.body.machine,
         deviceProfile: req.body.deviceProfile,
         instance: req.body.instance,
         server: req.body.server,

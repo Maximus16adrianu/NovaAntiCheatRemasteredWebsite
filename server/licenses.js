@@ -1200,17 +1200,17 @@ function activateLicense(payload = {}) {
 
   const heartbeatIntervalSeconds = clampInteger(payload.heartbeatIntervalSeconds, 10, 300, config.defaultHeartbeatSeconds);
   const serverInfo = sanitizeServerInfo(payload.server);
-  const hwidPayload = payload.hwid || payload.machine || {};
+  const hwidPayload = payload.hwid || {};
   const fingerprint = buildHwidFingerprint(hwidPayload);
   if (!hasHwidIdentity(fingerprint.normalized)) {
     throw new HttpError(400, "A device fingerprint is required.");
   }
-  const deviceProfile = normalizeDeviceProfilePayload(payload.deviceProfile || payload.machine || {}, {
+  const deviceProfile = normalizeDeviceProfilePayload(payload.deviceProfile || {}, {
     ...fingerprint.normalized,
-    pcName: payload.deviceProfile?.pcName || payload.pcName || payload.machine?.pcName || payload.machine?.hostName || payload.hwid?.hostName
+    pcName: payload.deviceProfile?.pcName || payload.hwid?.hostName
   });
   const deviceName = normalizeText(
-    deviceProfile.pcName || payload.pcName || payload.machine?.pcName || payload.hwid?.hostName || fingerprint.normalized.hostName,
+    deviceProfile.pcName || payload.hwid?.hostName || fingerprint.normalized.hostName,
     "Unknown Device"
   );
 

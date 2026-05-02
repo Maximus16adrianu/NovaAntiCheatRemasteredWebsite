@@ -117,6 +117,5 @@ module.exports = {
   buildHwidFingerprint,
   hasHwidIdentity,
   normalizeDeviceProfilePayload,
-  normalizeHwidPayload,
-  normalizeMachinePayload: normalizeHwidPayload
+  normalizeHwidPayload
 };
