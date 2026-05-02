@@ -10,7 +10,7 @@ const {
   sendLicenseWebhookTest
 } = require("./activity");
 const { getDatabase } = require("./database");
-const { buildHwidFingerprint } = require("./hwid");
+const { buildHwidFingerprint, hasHwidIdentity, normalizeDeviceProfilePayload } = require("./hwid");
 const { buildInstanceFingerprint } = require("./instance");
 const { listDownloadJarsForLicense } = require("./jars");
 const {
@@ -238,9 +238,17 @@ function serializeBlacklistedInstance(row) {
 }
 
 function sanitizeServerInfo(server = {}) {
+  const source = server || {};
   return {
-    serverName: normalizeText(server.serverName || server.name, "Unknown Server"),
-    pluginVersion: normalizeText(server.pluginVersion || server.version, "unknown")
+    serverName: normalizeText(source.serverName || source.name, "Unknown Server"),
+    pluginVersion: normalizeText(source.pluginVersion || source.version, "unknown"),
+    serverSoftware: normalizeText(source.serverSoftware || source.software, "unknown"),
+    serverVersion: normalizeText(source.serverVersion, "unknown"),
+    bukkitVersion: normalizeText(source.bukkitVersion, "unknown"),
+    onlineMode: source.onlineMode === undefined
+      ? null
+      : ["true", "1", "yes", "on"].includes(normalizeText(source.onlineMode).toLowerCase()),
+    maxPlayers: clampInteger(source.maxPlayers, 0, 100000, 0)
   };
 }
 
@@ -1190,6 +1198,22 @@ function activateLicense(payload = {}) {
     throw new HttpError(400, "A username is required.");
   }
 
+  const heartbeatIntervalSeconds = clampInteger(payload.heartbeatIntervalSeconds, 10, 300, config.defaultHeartbeatSeconds);
+  const serverInfo = sanitizeServerInfo(payload.server);
+  const hwidPayload = payload.hwid || payload.machine || {};
+  const fingerprint = buildHwidFingerprint(hwidPayload);
+  if (!hasHwidIdentity(fingerprint.normalized)) {
+    throw new HttpError(400, "A device fingerprint is required.");
+  }
+  const deviceProfile = normalizeDeviceProfilePayload(payload.deviceProfile || payload.machine || {}, {
+    ...fingerprint.normalized,
+    pcName: payload.deviceProfile?.pcName || payload.pcName || payload.machine?.pcName || payload.machine?.hostName || payload.hwid?.hostName
+  });
+  const deviceName = normalizeText(
+    deviceProfile.pcName || payload.pcName || payload.machine?.pcName || payload.hwid?.hostName || fingerprint.normalized.hostName,
+    "Unknown Device"
+  );
+
   if (license.customer_username) {
     if (normalizeIdentifier(license.customer_username) !== username) {
       logAudit({
@@ -1198,7 +1222,11 @@ function activateLicense(payload = {}) {
         action: "auth_denied_username_mismatch",
         details: {
           expectedUsername: license.customer_username,
-          providedUsername: payload.username
+          providedUsername: payload.username,
+          deviceName,
+          hwidHash: fingerprint.hash,
+          deviceProfile,
+          server: serverInfo
         }
       });
       throw new HttpError(403, "The provided username does not match this license.");
@@ -1207,12 +1235,6 @@ function activateLicense(payload = {}) {
     db.prepare("UPDATE licenses SET customer_username = ?, updated_at = ? WHERE id = ?").run(username, nowIso(), license.id);
   }
 
-  const heartbeatIntervalSeconds = clampInteger(payload.heartbeatIntervalSeconds, 10, 300, config.defaultHeartbeatSeconds);
-  const serverInfo = sanitizeServerInfo(payload.server);
-  const fingerprint = buildHwidFingerprint({
-    ...(payload.machine || {}),
-    pcName: payload.pcName || payload.machine?.pcName || payload.machine?.hostName
-  });
   const instanceFingerprint = buildInstanceFingerprint(payload.instance || {}, serverInfo);
 
   if (!instanceFingerprint.normalized.instanceUuid) {
@@ -1222,12 +1244,12 @@ function activateLicense(payload = {}) {
     throw new HttpError(400, "Stable instance path anchors are required.");
   }
 
-  const deviceName = normalizeText(payload.pcName || payload.machine?.pcName || fingerprint.normalized.pcName, "Unknown Device");
   const instanceName = normalizeText(payload.instance?.instanceName || payload.instance?.name || serverInfo.serverName, "Unknown Instance");
   const timestamp = nowIso();
   const deviceFingerprintJson = JSON.stringify({
     normalized: fingerprint.normalized,
     hwidHash: fingerprint.hash,
+    deviceProfile,
     server: serverInfo
   });
   const instanceFingerprintJson = JSON.stringify({
@@ -1244,7 +1266,9 @@ function activateLicense(payload = {}) {
       action: "auth_denied_device_blacklisted",
       details: {
         deviceName,
-        hwidHash: fingerprint.hash
+        hwidHash: fingerprint.hash,
+        deviceProfile,
+        server: serverInfo
       }
     });
     throw new HttpError(403, "This device has been blocked for this license.");
@@ -1263,7 +1287,11 @@ function activateLicense(payload = {}) {
       details: {
         instanceName,
         instanceHash: instanceFingerprint.hash,
-        instanceUuid: instanceFingerprint.normalized.instanceUuid
+        instanceUuid: instanceFingerprint.normalized.instanceUuid,
+        deviceName,
+        hwidHash: fingerprint.hash,
+        deviceProfile,
+        server: serverInfo
       }
     });
     throw new HttpError(403, "This server instance has been blocked for this license.");
@@ -1290,7 +1318,9 @@ function activateLicense(payload = {}) {
         maxHwids: license.max_hwids,
         activeDeviceCount,
         deviceName,
-        hwidHash: fingerprint.hash
+        hwidHash: fingerprint.hash,
+        deviceProfile,
+        server: serverInfo
       });
     }
 
@@ -1349,7 +1379,11 @@ function activateLicense(payload = {}) {
         activeInstanceCount,
         instanceName,
         instanceHash: instanceFingerprint.hash,
-        instanceUuid: instanceFingerprint.normalized.instanceUuid
+        instanceUuid: instanceFingerprint.normalized.instanceUuid,
+        deviceName,
+        hwidHash: fingerprint.hash,
+        deviceProfile,
+        server: serverInfo
       });
     }
 
@@ -1463,7 +1497,8 @@ function activateLicense(payload = {}) {
         details: {
           ...error.auditDetails,
           serverName: serverInfo.serverName,
-          pluginVersion: serverInfo.pluginVersion
+          pluginVersion: serverInfo.pluginVersion,
+          deviceProfile
         }
       });
     }
@@ -1486,7 +1521,9 @@ function activateLicense(payload = {}) {
       instanceHash: result.instance.instance_hash,
       heartbeatIntervalSeconds,
       serverName: serverInfo.serverName,
-      pluginVersion: serverInfo.pluginVersion
+      pluginVersion: serverInfo.pluginVersion,
+      deviceProfile,
+      server: serverInfo
     }
   });
 
@@ -1499,7 +1536,9 @@ function activateLicense(payload = {}) {
       details: {
         deviceName: result.createdDevice.device_name,
         hwidHash: result.createdDevice.hwid_hash,
-        username
+        username,
+        deviceProfile,
+        server: serverInfo
       }
     });
   }

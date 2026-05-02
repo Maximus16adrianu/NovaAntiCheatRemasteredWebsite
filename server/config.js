@@ -48,7 +48,10 @@ const config = Object.freeze({
   sessionStaleGraceSeconds: Number.parseInt(process.env.SESSION_STALE_GRACE_SECONDS || "10", 10),
   initialSessionGraceSeconds: Number.parseInt(process.env.INITIAL_SESSION_GRACE_SECONDS || "60", 10),
   pluginSecureTransportRequired: String(process.env.PLUGIN_SECURE_TRANSPORT_REQUIRED || "false").toLowerCase() === "true",
-  secureRequestMaxSkewSeconds: Number.parseInt(process.env.SECURE_REQUEST_MAX_SKEW_SECONDS || "180", 10)
+  secureRequestMaxSkewSeconds: Number.parseInt(process.env.SECURE_REQUEST_MAX_SKEW_SECONDS || "180", 10),
+  auditRetentionDays: Number.parseInt(process.env.AUDIT_RETENTION_DAYS || "180", 10),
+  auditMaxTotalRows: Number.parseInt(process.env.AUDIT_MAX_TOTAL_ROWS || "100000", 10),
+  auditMaxRowsPerLicense: Number.parseInt(process.env.AUDIT_MAX_ROWS_PER_LICENSE || "5000", 10)
 });
 
 function ensureDirectories() {

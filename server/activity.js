@@ -1,6 +1,7 @@
 const http = require("http");
 const https = require("https");
 const { URL } = require("url");
+const { config } = require("./config");
 const { getDatabase } = require("./database");
 const { normalizeText, nowIso, safeJsonParse } = require("./utils");
 
@@ -482,13 +483,68 @@ function scheduleAuditNotification(entry) {
   });
 }
 
+function normalizeAuditLimit(value, fallback = 0) {
+  const parsed = Number.parseInt(value, 10);
+  if (!Number.isFinite(parsed)) {
+    return fallback;
+  }
+  return Math.max(0, parsed);
+}
+
+function pruneAuditLogs(database, licenseId = null) {
+  const retentionDays = normalizeAuditLimit(config.auditRetentionDays);
+  if (retentionDays > 0) {
+    const cutoff = new Date(Date.now() - (retentionDays * 24 * 60 * 60 * 1000)).toISOString();
+    database.prepare(`
+      DELETE FROM audit_logs
+       WHERE created_at < ?
+    `).run(cutoff);
+  }
+
+  const maxRowsPerLicense = normalizeAuditLimit(config.auditMaxRowsPerLicense);
+  const normalizedLicenseId = Number.parseInt(licenseId, 10);
+  if (maxRowsPerLicense > 0 && Number.isFinite(normalizedLicenseId)) {
+    database.prepare(`
+      DELETE FROM audit_logs
+       WHERE license_id = ?
+         AND id NOT IN (
+           SELECT id
+             FROM audit_logs
+            WHERE license_id = ?
+            ORDER BY created_at DESC, id DESC
+            LIMIT ?
+         )
+    `).run(normalizedLicenseId, normalizedLicenseId, maxRowsPerLicense);
+  }
+
+  const maxTotalRows = normalizeAuditLimit(config.auditMaxTotalRows);
+  if (maxTotalRows > 0) {
+    database.prepare(`
+      DELETE FROM audit_logs
+       WHERE id NOT IN (
+         SELECT id
+           FROM audit_logs
+          ORDER BY created_at DESC, id DESC
+          LIMIT ?
+       )
+    `).run(maxTotalRows);
+  }
+}
+
 function logAudit({ licenseId = null, deviceId = null, actor, action, details = {} }) {
   const createdAt = nowIso();
   const detailsJson = JSON.stringify(details || {});
-  const result = getDatabase().prepare(`
+  const database = getDatabase();
+  const result = database.prepare(`
     INSERT INTO audit_logs (license_id, device_id, actor, action, details_json, created_at)
     VALUES (?, ?, ?, ?, ?, ?)
   `).run(licenseId, deviceId, actor, action, detailsJson, createdAt);
+
+  try {
+    pruneAuditLogs(database, licenseId);
+  } catch (error) {
+    console.error("[NovaAC Website] Audit log pruning failed:", error);
+  }
 
   scheduleAuditNotification({
     auditId: result.lastInsertRowid,
@@ -748,6 +804,7 @@ module.exports = {
   logAudit,
   normalizeDiscordWebhookUrl,
   normalizeWebhookEventSettings,
+  pruneAuditLogs,
   sendLicenseWebhookTest,
   processExpiringLicenseNotifications
 };

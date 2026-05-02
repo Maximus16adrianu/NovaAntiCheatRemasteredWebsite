@@ -271,6 +271,7 @@ function initializeDatabase() {
     CREATE INDEX IF NOT EXISTS idx_sessions_open ON service_sessions (closed_at, license_id, device_id);
     CREATE INDEX IF NOT EXISTS idx_sessions_instance_open ON service_sessions (closed_at, instance_id);
     CREATE INDEX IF NOT EXISTS idx_audit_logs_license ON audit_logs (license_id, created_at);
+    CREATE INDEX IF NOT EXISTS idx_audit_logs_created ON audit_logs (created_at, id);
     CREATE INDEX IF NOT EXISTS idx_webhook_notifications_license ON webhook_notifications (license_id, created_at);
     CREATE INDEX IF NOT EXISTS idx_download_jars_sort ON download_jars (sort_order, id);
     CREATE INDEX IF NOT EXISTS idx_device_blacklist_license ON license_device_blacklist (license_id, hwid_hash);
