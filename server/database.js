@@ -229,9 +229,9 @@ function initializeDatabase() {
        END,
            cloud_player_slots = CASE
          WHEN lower(trim(license_type)) = 'lifetime' THEN 0
-         WHEN lower(trim(license_plan)) = 'pro' AND cloud_player_slots <= 25 THEN 25
-         WHEN lower(trim(license_plan)) = 'pro' AND cloud_player_slots <= 50 THEN 50
-         WHEN lower(trim(license_plan)) = 'pro' THEN 75
+         WHEN lower(trim(license_plan)) = 'pro' AND cloud_player_slots <= 5 THEN 5
+         WHEN lower(trim(license_plan)) = 'pro' AND cloud_player_slots <= 10 THEN 10
+         WHEN lower(trim(license_plan)) = 'pro' THEN 15
          ELSE 0
        END
   `);

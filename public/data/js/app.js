@@ -26,14 +26,14 @@ const LICENSE_PLANS = {
   basic: {
     label: "Basic",
     cloudIncludedSlots: 0,
-    cloudSlotBundleSize: 25,
+    cloudSlotBundleSize: 5,
     cloudBase: { monthly: 0, yearly: 0, lifetime: 0 },
     cloudAddon: { monthly: 0, yearly: 0, lifetime: 0 }
   },
   pro: {
     label: "Pro",
-    cloudIncludedSlots: 25,
-    cloudSlotBundleSize: 25,
+    cloudIncludedSlots: 5,
+    cloudSlotBundleSize: 5,
     cloudBase: { monthly: 5, yearly: 30, lifetime: 0 },
     cloudAddon: { monthly: 5, yearly: 30, lifetime: 0 }
   }
@@ -2160,14 +2160,14 @@ function getProPlayerCap(planKey) {
   if (planKey !== "pro") {
     return 0;
   }
-  const parsed = Number.parseInt(elements.calcCloudSlots?.value || "25", 10);
-  if (parsed <= 25) {
-    return 25;
+  const parsed = Number.parseInt(elements.calcCloudSlots?.value || "5", 10);
+  if (parsed <= 5) {
+    return 5;
   }
-  if (parsed <= 50) {
-    return 50;
+  if (parsed <= 10) {
+    return 10;
   }
-  return 75;
+  return 15;
 }
 
 function updatePricingFormFields(planKey) {
@@ -2185,13 +2185,13 @@ function updatePricingFormFields(planKey) {
     return;
   }
   if (planKey !== "pro") {
-    elements.calcCloudSlots.value = "25";
+    elements.calcCloudSlots.value = "5";
     elements.calcCloudSlots.disabled = true;
     return;
   }
   elements.calcCloudSlots.disabled = false;
-  if (![25, 50, 75].includes(Number.parseInt(elements.calcCloudSlots.value || "0", 10))) {
-    elements.calcCloudSlots.value = "25";
+  if (![5, 10, 15].includes(Number.parseInt(elements.calcCloudSlots.value || "0", 10))) {
+    elements.calcCloudSlots.value = "5";
   }
 }
 

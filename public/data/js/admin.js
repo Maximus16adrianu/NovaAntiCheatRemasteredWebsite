@@ -8,14 +8,14 @@ const LICENSE_PLANS = {
   basic: {
     label: "Basic",
     cloudIncludedSlots: 0,
-    cloudSlotBundleSize: 25,
+    cloudSlotBundleSize: 5,
     cloudBase: { monthly: 0, yearly: 0, lifetime: 0 },
     cloudAddon: { monthly: 0, yearly: 0, lifetime: 0 }
   },
   pro: {
     label: "Pro",
-    cloudIncludedSlots: 25,
-    cloudSlotBundleSize: 25,
+    cloudIncludedSlots: 5,
+    cloudSlotBundleSize: 5,
     cloudBase: { monthly: 5, yearly: 30, lifetime: 0 },
     cloudAddon: { monthly: 5, yearly: 30, lifetime: 0 }
   }
@@ -533,14 +533,14 @@ function getFormCloudPlayerSlots() {
   if (plan !== "pro") {
     return 0;
   }
-  const parsed = Number.parseInt(elements.cloudPlayerSlotsField.value || "25", 10);
-  if (parsed <= 25) {
-    return 25;
+  const parsed = Number.parseInt(elements.cloudPlayerSlotsField.value || "5", 10);
+  if (parsed <= 5) {
+    return 5;
   }
-  if (parsed <= 50) {
-    return 50;
+  if (parsed <= 10) {
+    return 10;
   }
-  return 75;
+  return 15;
 }
 
 function updatePlanFields() {
@@ -553,13 +553,13 @@ function updatePlanFields() {
   }
 
   if (getFormLicensePlan() !== "pro") {
-    elements.cloudPlayerSlotsField.value = "25";
+    elements.cloudPlayerSlotsField.value = "5";
     elements.cloudPlayerSlotsField.disabled = true;
     return;
   }
   elements.cloudPlayerSlotsField.disabled = false;
-  if (![25, 50, 75].includes(Number.parseInt(elements.cloudPlayerSlotsField.value || "0", 10))) {
-    elements.cloudPlayerSlotsField.value = "25";
+  if (![5, 10, 15].includes(Number.parseInt(elements.cloudPlayerSlotsField.value || "0", 10))) {
+    elements.cloudPlayerSlotsField.value = "5";
   }
 }
 
@@ -641,7 +641,7 @@ function resetLicenseForm() {
   elements.displayNameField.value = "";
   elements.licenseTypeField.value = "monthly";
   elements.licensePlanField.value = "basic";
-  elements.cloudPlayerSlotsField.value = "25";
+  elements.cloudPlayerSlotsField.value = "5";
   elements.maxSlotsField.value = "1";
   elements.resetIntervalField.value = "30";
   elements.notesField.value = "";
@@ -664,7 +664,7 @@ function populateLicenseForm(license) {
   elements.displayNameField.value = license.displayName || "";
   elements.licenseTypeField.value = license.licenseType || "monthly";
   elements.licensePlanField.value = license.licensePlan || "basic";
-  elements.cloudPlayerSlotsField.value = String(license.cloudPlayerSlots || 25);
+    elements.cloudPlayerSlotsField.value = String(license.cloudPlayerSlots || 5);
   elements.maxSlotsField.value = String(license.maxSlots || 1);
   elements.resetIntervalField.value = String(license.resetIntervalDays || 30);
   elements.notesField.value = license.notes || "";
