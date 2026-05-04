@@ -135,16 +135,16 @@ final class CloudClientSession implements Runnable {
         );
         logVerdict(request, verdict, delta, after);
         JsonObject response = verdict.asJson();
-        String localVerdictId = string(request, "localVerdictId");
+        String localVerdictId = string(request, "localEngineVerdictId");
         if (!localVerdictId.isEmpty()) {
-            response.addProperty("localVerdictId", localVerdictId);
+            response.addProperty("localEngineVerdictId", localVerdictId);
         }
         return response;
     }
 
     private JsonObject localVerdictClearResponse(JsonObject request, UUID playerId) {
-        String localVerdictId = string(request, "localVerdictId");
-        if (playerId == null || localVerdictId.isEmpty() || !booleanValue(request, "localFlag", false)) {
+        String localVerdictId = string(request, "localEngineVerdictId");
+        if (playerId == null || localVerdictId.isEmpty() || !booleanValue(request, "localEngineFlag", false)) {
             return null;
         }
         if ("local_verdict".equals(string(request, "event"))) {
@@ -169,7 +169,7 @@ final class CloudClientSession implements Runnable {
         }
         lastTraceMs = now;
 
-        String localId = string(request, "localVerdictId");
+        String localId = string(request, "localEngineVerdictId");
         StringBuilder builder = new StringBuilder();
         builder.append("cloud recv event=").append(eventName.isEmpty() ? "unknown" : eventName)
                 .append(" phase=").append(phase)
@@ -177,12 +177,12 @@ final class CloudClientSession implements Runnable {
         if (!localId.isEmpty()) {
             builder.append(" localId=").append(localId);
         }
-        if (request.has("localScore")) {
+        if (request.has("localEngineScore")) {
             builder.append(String.format(Locale.US,
                     " local=%.2f/%.2f flag=%s",
-                    doubleValue(request, "localScore", 0.0D),
-                    doubleValue(request, "localConfidence", 0.0D),
-                    Boolean.toString(booleanValue(request, "localFlag", false))));
+                    doubleValue(request, "localEngineScore", 0.0D),
+                    doubleValue(request, "localEngineConfidence", 0.0D),
+                    Boolean.toString(booleanValue(request, "localEngineFlag", false))));
         }
         if (trace != null) {
             builder.append(" mxRaw=").append(trace.rawCount())

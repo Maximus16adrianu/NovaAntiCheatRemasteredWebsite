@@ -482,6 +482,8 @@ function getAuditActionLabel(action) {
       return "Denied: username mismatch";
     case "reset_cooldown_denied":
       return "Denied: cooldown";
+    case "heartbeat_denied_session_revoked":
+      return "Denied: session revoked";
     case "heartbeat_denied_license_missing":
       return "Denied: session missing";
     case "heartbeat_denied_license_disabled":
@@ -1952,11 +1954,11 @@ async function resetSelectedDevices() {
     title: "Reset selected devices",
     description: "This clears the selected HWIDs from the license immediately.",
     infoTitle: "Device reset",
-    infoText: "Any open sessions on those devices are closed right away and the devices must authenticate again later.",
+    infoText: "Any open sessions on those devices are closed right away and the running jars are told to stop instead of reconnecting.",
     effects: [
       `Reset ${state.selectedDevices.size} selected device${state.selectedDevices.size === 1 ? "" : "s"}.`,
-      "Close current sessions on those devices.",
-      "Remove the matching device records until they authenticate again."
+      "Close current sessions on those devices and all their instances.",
+      "Require those servers to be restarted before they can authenticate again."
     ],
     confirmLabel: "Reset devices",
     tone: "danger"
@@ -1991,11 +1993,11 @@ async function resetSelectedInstances() {
     title: "Reset selected instances",
     description: "This clears the selected stored server instances from the license immediately.",
     infoTitle: "Instance reset",
-    infoText: "Any open sessions on those servers are closed right away and the instances must authenticate again later.",
+    infoText: "Any open sessions on those servers are closed right away and the selected running jars are told to stop instead of reconnecting.",
     effects: [
       `Reset ${state.selectedInstances.size} selected instance${state.selectedInstances.size === 1 ? "" : "s"}.`,
       "Close current sessions for those servers.",
-      "Free the matching instance slots until the servers authenticate again."
+      "Require those servers to be restarted before they can authenticate again."
     ],
     confirmLabel: "Reset instances",
     tone: "danger"

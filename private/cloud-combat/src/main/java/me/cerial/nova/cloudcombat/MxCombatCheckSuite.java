@@ -94,14 +94,14 @@ final class MxCombatCheckSuite {
         state.lastSeenMs = now;
         state.pingMs = intValue(event, "ping", state.pingMs);
         state.tps = doubleValue(event, "tps", state.tps);
-        if (event.has("localScore")) {
-            state.localScore = doubleValue(event, "localScore", state.localScore);
+        if (event.has("localEngineScore")) {
+            state.localScore = doubleValue(event, "localEngineScore", state.localScore);
         }
-        if (event.has("localConfidence")) {
-            state.localConfidence = doubleValue(event, "localConfidence", state.localConfidence);
+        if (event.has("localEngineConfidence")) {
+            state.localConfidence = doubleValue(event, "localEngineConfidence", state.localConfidence);
         }
-        if (event.has("localFlag")) {
-            state.localFlag = booleanValue(event, "localFlag", state.localFlag);
+        if (event.has("localEngineFlag")) {
+            state.localFlag = booleanValue(event, "localEngineFlag", state.localFlag);
         }
 
         String eventName = string(event, "event");

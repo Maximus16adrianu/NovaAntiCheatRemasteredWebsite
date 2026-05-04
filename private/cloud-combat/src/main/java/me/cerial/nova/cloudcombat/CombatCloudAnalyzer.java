@@ -1,9 +1,8 @@
 package me.cerial.nova.cloudcombat;
 
+import com.google.gson.JsonArray;
+import com.google.gson.JsonElement;
 import com.google.gson.JsonObject;
-import me.cerial.nova.cloudcombat.engine.CombatEngineConfig;
-import me.cerial.nova.cloudcombat.engine.CombatEngineEvaluator;
-import me.cerial.nova.cloudcombat.engine.CombatEngineState;
 import me.cerial.nova.cloudcombat.engine.CombatEngineVerdict;
 
 import java.util.ArrayList;
@@ -15,15 +14,13 @@ import java.util.concurrent.ConcurrentHashMap;
 final class CombatCloudAnalyzer {
     private static final long FLAG_COOLDOWN_MS = 175L;
     private static final long PLAYER_IDLE_RESET_MS = 20_000L;
+    private static final long IMPORTED_ENGINE_VERDICT_MAX_AGE_MS = 12_000L;
     private static final long SUSTAINED_EVIDENCE_MAX_AGE_MS = 12_000L;
     private static final long SUSTAINED_PACKET_COMBAT_FRESH_AGE_MS = 30_000L;
     private static final long SUSTAINED_PACKET_COMBAT_MAX_AGE_MS = 90_000L;
     private static final long SUSTAINED_VERDICT_INTERVAL_MS = 500L;
     private static final long ONGOING_COMBAT_ACTIVITY_MS = 1_750L;
 
-    private final CombatEngineConfig config = CombatEngineConfig.defaults();
-    private final CombatEngineEvaluator evaluator = new CombatEngineEvaluator();
-    private final NovaCombatCheckSuite novaChecks = new NovaCombatCheckSuite();
     private final MxCombatCheckSuite mxChecks = new MxCombatCheckSuite();
     private final Map<UUID, PlayerState> states = new ConcurrentHashMap<>();
     private volatile Trace lastTrace = Trace.empty();
@@ -35,7 +32,7 @@ final class CombatCloudAnalyzer {
     CombatCloudVerdict accept(JsonObject event, boolean traceEnabled) {
         lastTrace = Trace.empty();
         UUID playerId = uuid(event, "playerId");
-        if (playerId == null || !config.isEnabled()) {
+        if (playerId == null) {
             return null;
         }
         long now = longValue(event, "time", System.currentTimeMillis());
@@ -46,11 +43,12 @@ final class CombatCloudAnalyzer {
         }
         PlayerState state = states.computeIfAbsent(playerId, PlayerState::new);
         state.resetIfIdle(now);
-        state.record(event, now);
-        List<CombatCheckFinding> novaFindings = novaChecks.accept(playerId, state.novaState, event, now);
+        boolean importedEngineEvent = state.record(event, now);
+        List<CombatCheckFinding> novaFindings = List.of();
         List<CombatCheckFinding> mxFindings = mxChecks.accept(playerId, state.mxState, event, now);
         String mxStateSummary = traceEnabled ? state.mxState.debugSummary(now) : "";
-        CombatEngineVerdict engineVerdict = evaluateEngineIfDue(playerId, state, now);
+        CombatEngineVerdict engineVerdict = state.currentEngineVerdict(now);
+        CombatEngineVerdict directEngineVerdict = importedEngineEvent ? engineVerdict : null;
         List<CombatCheckFinding> checkFindings = new ArrayList<>(novaFindings);
         List<CombatCheckFinding> selectedMxFindings = traceEnabled ? new ArrayList<>(mxFindings.size()) : List.of();
         List<CombatCheckFinding> filteredFindings = traceEnabled ? new ArrayList<>() : List.of();
@@ -65,7 +63,7 @@ final class CombatCloudAnalyzer {
             }
         }
 
-        CombatCloudVerdict cloudVerdict = strongest(playerId, engineVerdict, checkFindings);
+        CombatCloudVerdict cloudVerdict = strongest(playerId, directEngineVerdict, checkFindings);
         state.decaySustainedEvidence(now);
         if (cloudVerdict != null && cloudVerdict.flag()) {
             if (eligibleForSustained(cloudVerdict)) {
@@ -92,28 +90,6 @@ final class CombatCloudAnalyzer {
         state.lastFlagMs = now;
         lastTrace = new Trace(mxFindings, selectedMxFindings, filteredFindings, cloudVerdict, sustainedVerdict, "sustained", mxStateSummary);
         return sustainedVerdict;
-    }
-
-    private CombatEngineVerdict evaluateEngineIfDue(UUID playerId, PlayerState state, long now) {
-        if (playerId == null || state == null || state.engineState == null) {
-            return null;
-        }
-        if (!state.engineState.isCombatActive(now, config.getCombatWindowMs())) {
-            return null;
-        }
-        long lastEvaluationMs = state.engineState.getLastEvaluationMs();
-        long intervalMs = Math.max(1L, config.getEvaluationIntervalMs());
-        if (lastEvaluationMs > 0L && now - lastEvaluationMs < intervalMs) {
-            return null;
-        }
-        return evaluator.evaluateState(
-                playerId,
-                state.engineState,
-                config,
-                now,
-                state.pingMs,
-                state.tps
-        );
     }
 
     Trace lastTrace() {
@@ -162,7 +138,7 @@ final class CombatCloudAnalyzer {
         }
 
         List<String> topSignals = new ArrayList<>();
-        topSignals.add("CombatEngine-A");
+        topSignals.add("CombatEngine-B");
         if (engineVerdict.getTopSignals() != null) {
             topSignals.addAll(engineVerdict.getTopSignals());
         }
@@ -172,7 +148,7 @@ final class CombatCloudAnalyzer {
                 confidence,
                 true,
                 vl,
-                "CombatEngine-A " + engineVerdict.getReasonSummary(),
+                "CombatEngine-B " + engineVerdict.getReasonSummary(),
                 topSignals
         );
     }
@@ -448,6 +424,28 @@ final class CombatCloudAnalyzer {
         }
     }
 
+    private static List<String> stringList(JsonObject object, String key) {
+        if (object == null || !object.has(key) || !object.get(key).isJsonArray()) {
+            return List.of();
+        }
+        JsonArray array = object.getAsJsonArray(key);
+        List<String> values = new ArrayList<>();
+        for (JsonElement element : array) {
+            if (element == null || element.isJsonNull()) {
+                continue;
+            }
+            String value = element.getAsString();
+            if (value == null || value.trim().isEmpty()) {
+                continue;
+            }
+            values.add(value.trim());
+            if (values.size() >= 8) {
+                break;
+            }
+        }
+        return values;
+    }
+
     record Trace(List<CombatCheckFinding> mxFindings,
                  List<CombatCheckFinding> selectedFindings,
                  List<CombatCheckFinding> filteredFindings,
@@ -517,9 +515,9 @@ final class CombatCloudAnalyzer {
 
     private static final class PlayerState {
         private final UUID playerId;
-        private CombatEngineState engineState;
-        private NovaCombatCheckSuite.State novaState = new NovaCombatCheckSuite.State();
         private MxCombatCheckSuite.State mxState = new MxCombatCheckSuite.State();
+        private CombatEngineVerdict importedEngineVerdict;
+        private long importedEngineVerdictReceivedMs;
         private long lastFlagMs;
         private long lastEventMs;
         private long lastSustainedDecayMs;
@@ -539,7 +537,6 @@ final class CombatCloudAnalyzer {
 
         private PlayerState(UUID playerId) {
             this.playerId = playerId;
-            this.engineState = new CombatEngineState(playerId);
         }
 
         private void resetIfIdle(long now) {
@@ -550,9 +547,9 @@ final class CombatCloudAnalyzer {
         }
 
         private void reset() {
-            this.engineState = new CombatEngineState(playerId);
-            this.novaState = new NovaCombatCheckSuite.State();
             this.mxState = new MxCombatCheckSuite.State();
+            this.importedEngineVerdict = null;
+            this.importedEngineVerdictReceivedMs = 0L;
             this.lastFlagMs = 0L;
             this.lastSustainedDecayMs = 0L;
             this.lastDirectVerdictMs = 0L;
@@ -699,66 +696,66 @@ final class CombatCloudAnalyzer {
                     || "autoclicker".equals(family);
         }
 
-        private void record(JsonObject event, long now) {
+        private boolean record(JsonObject event, long now) {
             this.pingMs = intValue(event, "ping", pingMs);
             this.tps = doubleValue(event, "tps", tps);
-            CombatEngineState.setCurrentTps(tps);
+            boolean importedEngineEvent = recordImportedEngineVerdict(event, now);
 
             String eventName = string(event, "event");
             if ("attack".equals(eventName)) {
                 markCombatEvent(now, true, false, false, false);
-                int target = intValue(event, "target", Integer.MIN_VALUE);
-                double yawError = doubleValue(event, "aimYawError", Double.NaN);
-                double pitchError = doubleValue(event, "aimPitchError", Double.NaN);
-                double distance = doubleValue(event, "distance", -1.0D);
-                if (Double.isNaN(yawError) || Double.isNaN(pitchError)) {
-                    engineState.recordAttackPacket(now, target);
-                } else {
-                    engineState.recordAttackPacket(now, target, yawError, pitchError, distance);
-                }
             } else if ("hit".equals(eventName)) {
                 markCombatEvent(now, false, true, false, false);
-                int target = intValue(event, "target", Integer.MIN_VALUE);
-                double distance = doubleValue(event, "distance", -1.0D);
-                engineState.recordConfirmedHit(now, target, distance);
-            } else if ("rotation_packet".equals(eventName)) {
-                engineState.recordRotationPacket(now);
-            } else if ("rotation_delta".equals(eventName)) {
-                engineState.recordRotationDelta(
-                        now,
-                        Math.abs(doubleValue(event, "yawDelta", 0.0D)),
-                        Math.abs(doubleValue(event, "pitchDelta", 0.0D))
-                );
             } else if ("tracking_aim".equals(eventName)) {
                 markCombatEvent(now, false, false, false, true);
-                engineState.recordTrackingAimSample(
-                        now,
-                        Math.abs(doubleValue(event, "aimYawError", Double.NaN)),
-                        Math.abs(doubleValue(event, "aimPitchError", Double.NaN))
-                );
             } else if ("animation".equals(eventName) || "swing".equals(eventName)) {
                 markCombatEvent(now, false, false, true, false);
-                engineState.recordSwingPacket(now);
-            } else if ("block_use".equals(eventName)) {
-                engineState.recordBlockOrUsePacket(now);
-            } else if ("digging".equals(eventName)) {
-                engineState.recordDiggingPacket(now, string(event, "action"));
-            } else if ("inventory".equals(eventName)) {
-                engineState.recordInventoryPacket(now);
             } else if ("check_delta".equals(eventName)) {
                 int delta = intValue(event, "delta", 0);
                 if (delta > 0) {
                     if (combatCheckDelta(event)) {
                         markCombatEvent(now, false, false, false, false);
                     }
-                    engineState.recordCheckDelta(
-                            now,
-                            string(event, "check"),
-                            string(event, "family"),
-                            delta
-                    );
                 }
             }
+            return importedEngineEvent;
+        }
+
+        private CombatEngineVerdict currentEngineVerdict(long now) {
+            if (importedEngineVerdict == null || importedEngineVerdictReceivedMs <= 0L) {
+                return null;
+            }
+            if (now - importedEngineVerdictReceivedMs > IMPORTED_ENGINE_VERDICT_MAX_AGE_MS) {
+                importedEngineVerdict = null;
+                importedEngineVerdictReceivedMs = 0L;
+                return null;
+            }
+            return importedEngineVerdict;
+        }
+
+        private boolean recordImportedEngineVerdict(JsonObject event, long now) {
+            double score = doubleValue(event, "localEngineScore", Double.NaN);
+            double confidence = doubleValue(event, "localEngineConfidence", Double.NaN);
+            if (!Double.isFinite(score) || !Double.isFinite(confidence)) {
+                return false;
+            }
+
+            boolean flag = booleanValue(event, "localEngineFlag", false);
+            boolean legitCompatibility = booleanValue(event, "localEngineLegitCompatibility", false);
+            String summary = string(event, "localEngineSummary");
+            List<String> topSignals = stringList(event, "localEngineTopSignals");
+            long timestamp = longValue(event, "localEngineTimestamp", now);
+            importedEngineVerdict = new CombatEngineVerdict(
+                    score,
+                    confidence,
+                    summary,
+                    topSignals,
+                    flag,
+                    legitCompatibility,
+                    timestamp
+            );
+            importedEngineVerdictReceivedMs = now;
+            return true;
         }
     }
 }

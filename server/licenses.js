@@ -47,6 +47,19 @@ const {
 } = require("./utils");
 
 const RESET_LOOKUP_COOLDOWN_MS = 10_000;
+const TERMINAL_SESSION_CLOSE_REASONS = new Set([
+  "admin_reset",
+  "admin_instance_reset",
+  "user_reset",
+  "user_security_reset",
+  "user_instance_revoke_all",
+  "device_blacklisted",
+  "instance_blacklisted",
+  "admin_lockdown",
+  "license_missing",
+  "license_disabled",
+  "license_expired"
+]);
 
 const LICENSE_SELECT = `
   SELECT l.*,
@@ -1153,6 +1166,37 @@ function buildActivationFailure(status, message, action, details = {}) {
   return error;
 }
 
+function shouldDenyClosedSessionReconnect(reason) {
+  return TERMINAL_SESSION_CLOSE_REASONS.has(normalizeText(reason).toLowerCase());
+}
+
+function closedSessionDenyMessage(reason) {
+  const normalized = normalizeText(reason).toLowerCase();
+  switch (normalized) {
+    case "admin_reset":
+    case "user_reset":
+    case "user_security_reset":
+      return "This device session was reset and must be restarted.";
+    case "admin_instance_reset":
+    case "user_instance_revoke_all":
+      return "This server instance session was reset and must be restarted.";
+    case "device_blacklisted":
+      return "This device has been blocked for this license.";
+    case "instance_blacklisted":
+      return "This server instance has been blocked for this license.";
+    case "admin_lockdown":
+      return "Nova auth is locked down by admin.";
+    case "license_missing":
+      return "License no longer exists.";
+    case "license_disabled":
+      return "This license is disabled.";
+    case "license_expired":
+      return "This license has expired.";
+    default:
+      return "This session was closed by the backend and must be restarted.";
+  }
+}
+
 function activateLicense(payload = {}) {
   reconcileSessions();
 
@@ -1581,6 +1625,26 @@ function heartbeatLicenseSession(payload = {}) {
   });
 
   if (!session) {
+    const closedSession = getSessionByToken(sessionToken);
+    if (closedSession?.closed_at && shouldDenyClosedSessionReconnect(closedSession.close_reason)) {
+      logAudit({
+        licenseId: closedSession.license_id,
+        deviceId: closedSession.device_id,
+        actor: "plugin",
+        action: "heartbeat_denied_session_revoked",
+        details: {
+          sessionToken,
+          instanceId: closedSession.instance_id,
+          instanceName: closedSession.instance_name,
+          closeReason: closedSession.close_reason || "closed",
+          closedAt: closedSession.closed_at
+        }
+      });
+      throw new HttpError(403, closedSessionDenyMessage(closedSession.close_reason), {
+        closeReason: closedSession.close_reason || "closed",
+        closedAt: closedSession.closed_at
+      });
+    }
     throw new HttpError(404, "Session not found or already closed.");
   }
 

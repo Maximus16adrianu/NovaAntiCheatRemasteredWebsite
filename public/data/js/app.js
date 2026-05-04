@@ -760,6 +760,8 @@ function getAuthAttemptTitle(entry) {
       return "Denied: username mismatch";
     case "reset_cooldown_denied":
       return "Denied: cooldown";
+    case "heartbeat_denied_session_revoked":
+      return "Denied: session revoked";
     case "heartbeat_denied_license_missing":
       return "Denied: session missing";
     case "heartbeat_denied_license_disabled":
@@ -794,6 +796,10 @@ function getAuthAttemptSummary(entry) {
       return "This device is on the security blacklist for the license.";
     case "auth_denied_instance_blacklisted":
       return "This server instance is on the security blacklist for the license.";
+    case "heartbeat_denied_session_revoked":
+      return details.closeReason
+        ? `The backend closed this session with reason: ${details.closeReason}.`
+        : "The backend closed this session and the plugin was told to stop.";
     case "heartbeat_denied_license_missing":
       return "A heartbeat reached the backend after the session or license was no longer valid.";
     case "heartbeat_denied_license_disabled":
@@ -1153,10 +1159,10 @@ async function submitReset() {
     title: "Reset selected devices",
     description: "This removes the selected HWIDs from the license so they have to authenticate again later.",
     infoTitle: "Reset behavior",
-    infoText: "Active sessions on the selected devices are closed immediately and the normal reset cooldown starts after this action.",
+    infoText: "Active sessions on the selected devices are closed immediately, running jars are told to stop, and the normal reset cooldown starts after this action.",
     effects: [
-      `Close the current sessions on ${selectedIds.length} selected device${selectedIds.length === 1 ? "" : "s"}.`,
-      "Remove those HWIDs from the license until they authenticate again later.",
+      `Close the current sessions on ${selectedIds.length} selected device${selectedIds.length === 1 ? "" : "s"} and their instances.`,
+      "Require those servers to be restarted before they can authenticate again.",
       "Start the normal reset cooldown for this license.",
       selectedNames.length ? `Selected devices: ${selectedNames.join(", ")}.` : ""
     ],

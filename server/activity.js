@@ -55,6 +55,7 @@ const AUTH_FAILURE_ACTIONS = new Set([
   "auth_denied_instance_blacklisted",
   "hwid_limit_denied",
   "instance_limit_denied",
+  "heartbeat_denied_session_revoked",
   "heartbeat_denied_license_missing",
   "heartbeat_denied_license_disabled",
   "heartbeat_denied_license_expired"
