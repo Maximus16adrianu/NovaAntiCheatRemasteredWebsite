@@ -346,7 +346,14 @@ function listLicenseInstances(licenseId, options = {}) {
     SELECT i.*,
            d.device_name,
            d.hwid_hash,
-           (SELECT COUNT(*) FROM service_sessions s WHERE s.instance_id = i.id AND s.closed_at IS NULL) AS open_session_count
+           (SELECT COUNT(*)
+              FROM service_sessions s
+             WHERE s.license_id = i.license_id
+               AND s.closed_at IS NULL
+               AND (
+                 s.instance_id = i.id
+                 OR (i.instance_hash != '' AND s.instance_hash = i.instance_hash)
+               )) AS open_session_count
       FROM license_instances i
       LEFT JOIN license_devices d ON d.id = i.device_id
      WHERE i.license_id = ?
@@ -2163,17 +2170,63 @@ function resetLicenseInstances(license, instanceIds = [], options = {}) {
     throw new HttpError(400, "Select at least one registered instance.");
   }
 
-  const placeholders = normalizedIds.map(() => "?").join(",");
-  const instances = db.prepare(`
+  const selectedPlaceholders = normalizedIds.map(() => "?").join(",");
+  const selectedInstances = db.prepare(`
     SELECT *
       FROM license_instances
      WHERE license_id = ?
        AND active = 1
-       AND id IN (${placeholders})
+       AND id IN (${selectedPlaceholders})
   `).all(license.id, ...normalizedIds);
 
-  if (instances.length === 0) {
+  if (selectedInstances.length === 0) {
     throw new HttpError(404, "No matching active instances were found.");
+  }
+
+  const matchingInstancesById = new Map();
+  for (const instance of selectedInstances) {
+    matchingInstancesById.set(instance.id, instance);
+
+    for (const matchingInstance of listLicenseInstancesByIdentity(
+      license.id,
+      instance.instance_uuid,
+      instance.instance_hash
+    )) {
+      matchingInstancesById.set(matchingInstance.id, matchingInstance);
+    }
+  }
+
+  const matchingInstances = [...matchingInstancesById.values()];
+  const matchingIds = matchingInstances.map((instance) => instance.id).filter(Number.isFinite);
+  const matchingPlaceholders = matchingIds.map(() => "?").join(",");
+  const instanceHashes = [...new Set(matchingInstances.map((instance) => normalizeText(instance.instance_hash)).filter(Boolean))];
+  const hashPlaceholders = instanceHashes.map(() => "?").join(",");
+  const sessionConditions = [];
+  const sessionParams = [license.id];
+
+  if (matchingIds.length > 0) {
+    sessionConditions.push(`instance_id IN (${matchingPlaceholders})`);
+    sessionParams.push(...matchingIds);
+  }
+  if (instanceHashes.length > 0) {
+    sessionConditions.push(`instance_hash IN (${hashPlaceholders})`);
+    sessionParams.push(...instanceHashes);
+  }
+
+  const affectedDeviceIds = new Set(matchingInstances.map((instance) => instance.device_id).filter(Number.isFinite));
+  if (sessionConditions.length > 0) {
+    for (const row of db.prepare(`
+      SELECT DISTINCT device_id
+        FROM service_sessions
+       WHERE license_id = ?
+         AND closed_at IS NULL
+         AND device_id IS NOT NULL
+         AND (${sessionConditions.join(" OR ")})
+    `).all(...sessionParams)) {
+      if (Number.isFinite(row.device_id)) {
+        affectedDeviceIds.add(row.device_id);
+      }
+    }
   }
 
   const timestamp = nowIso();
@@ -2184,8 +2237,8 @@ function resetLicenseInstances(license, instanceIds = [], options = {}) {
              slot_claimed = 0,
              reset_at = ?
        WHERE license_id = ?
-         AND id IN (${placeholders})
-    `).run(timestamp, license.id, ...normalizedIds);
+         AND id IN (${matchingPlaceholders})
+    `).run(timestamp, license.id, ...matchingIds);
 
     db.prepare(`
       UPDATE service_sessions
@@ -2193,9 +2246,9 @@ function resetLicenseInstances(license, instanceIds = [], options = {}) {
              close_reason = ?,
              stale_closed = 0
        WHERE license_id = ?
-         AND instance_id IN (${placeholders})
          AND closed_at IS NULL
-    `).run(timestamp, closeReason, license.id, ...normalizedIds);
+         AND (${sessionConditions.join(" OR ")})
+    `).run(timestamp, closeReason, ...sessionParams);
 
     db.prepare(`
       UPDATE licenses
@@ -2204,17 +2257,21 @@ function resetLicenseInstances(license, instanceIds = [], options = {}) {
     `).run(timestamp, license.id);
   })();
 
-  for (const deviceId of [...new Set(instances.map((instance) => instance.device_id).filter(Number.isFinite))]) {
+  for (const deviceId of affectedDeviceIds) {
     syncDeviceSlotClaim(deviceId);
   }
 
-  for (const instance of instances) {
+  for (const instance of selectedInstances) {
     logAudit({
       licenseId: license.id,
       deviceId: instance.device_id,
       actor,
       action: "instance_reset",
-      details: { instanceName: instance.instance_name, instanceId: instance.id }
+      details: {
+        instanceName: instance.instance_name,
+        instanceId: instance.id,
+        affectedInstanceIds: matchingIds
+      }
     });
   }
 
