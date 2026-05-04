@@ -165,6 +165,9 @@
         <p class="section-copy">
           Choose Basic for the standard Nova license. Choose Pro when you want the additional online analysis tier for active players. Lifetime is available for Basic only.
         </p>
+        <div class="pricing-actions">
+          <button id="openPricingCompareButton" type="button" class="button button-secondary">Compare plans and limits</button>
+        </div>
 
         <div class="license-plan-grid">
           <article class="license-plan-card">
@@ -415,6 +418,85 @@
         <button id="continuePurchaseButton" type="button" class="button button-primary">Continue to PayPal</button>
         <button id="cancelPurchaseButton" type="button" class="button button-secondary">Cancel</button>
       </div>
+    </div>
+  </div>
+
+  <div id="pricingCompareModal" class="modal hidden" aria-hidden="true">
+    <div class="modal-panel panel pricing-compare-modal-panel">
+      <div class="downloads-head">
+        <div>
+          <p class="section-pill">Licensing</p>
+          <h3>Plan comparison</h3>
+          <p class="section-copy">A package controls where the plugin may run. The Pro player cap controls how many suspicious combat players can use the online analysis tier at the same time.</p>
+        </div>
+        <button id="closePricingCompareButton" type="button" class="button button-secondary">Close</button>
+      </div>
+
+      <div class="license-term-grid">
+        <article class="license-term-card">
+          <span class="meta-label">Package</span>
+          <strong>1 HWID + 1 instance</strong>
+          <p>One package lets one machine/device and one server instance authenticate. Add packages when you run Nova on more machines or servers.</p>
+        </article>
+        <article class="license-term-card">
+          <span class="meta-label">HWID</span>
+          <strong>Device identity</strong>
+          <p>The device running the jar. Reset this when you move the license to another machine or clear an old device.</p>
+        </article>
+        <article class="license-term-card">
+          <span class="meta-label">Pro players</span>
+          <strong>Cloud analysis slots</strong>
+          <p>This is not your server player limit. Local checks still run for everyone; Pro only limits simultaneous online analysis slots.</p>
+        </article>
+      </div>
+
+      <div class="license-compare-table-wrap">
+        <table class="license-compare-table">
+          <thead>
+            <tr>
+              <th>What it means</th>
+              <th>Basic</th>
+              <th>Pro</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr>
+              <th scope="row">Best for</th>
+              <td>Standard Nova protection with all local checks.</td>
+              <td>Servers that want the extra online combat analysis tier.</td>
+            </tr>
+            <tr>
+              <th scope="row">Included checks</th>
+              <td>Local Java and Bedrock checks run on the server.</td>
+              <td>Everything in Basic, plus Pro cloud analysis for selected combat cases.</td>
+            </tr>
+            <tr>
+              <th scope="row">Player cap</th>
+              <td>No Pro cloud slots. This does not limit your online player count.</td>
+              <td>10, 25 or 50 simultaneous players can be in Pro online analysis. Local checks still cover everyone.</td>
+            </tr>
+            <tr>
+              <th scope="row">Packages</th>
+              <td>Starts with 1 HWID and 1 server instance. Add more packages if needed.</td>
+              <td>Same package system as Basic. Pro player slots are separate from packages.</td>
+            </tr>
+            <tr>
+              <th scope="row">Billing</th>
+              <td>Monthly, yearly or lifetime.</td>
+              <td>Monthly or yearly only.</td>
+            </tr>
+            <tr>
+              <th scope="row">Price examples</th>
+              <td>Basic monthly: &euro;5. Basic yearly: &euro;30. Basic lifetime: &euro;125.</td>
+              <td>Pro 10: &euro;15/mo or &euro;90/year. Pro 25: &euro;25/mo or &euro;150/year. Pro 50: &euro;45/mo or &euro;270/year.</td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+
+      <p class="license-compare-note">
+        Example: a Pro max 10 players license with 2 packages can run on 2 stored machines/server instances, while up to 10 suspicious combat players can be analyzed by the Pro online tier at once.
+      </p>
     </div>
   </div>
 

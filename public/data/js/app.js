@@ -129,6 +129,9 @@ const elements = {
   calcEstimatePrice: document.getElementById("calcEstimatePrice"),
   calcEstimateMeta: document.getElementById("calcEstimateMeta"),
   calcEstimateNote: document.getElementById("calcEstimateNote"),
+  openPricingCompareButton: document.getElementById("openPricingCompareButton"),
+  pricingCompareModal: document.getElementById("pricingCompareModal"),
+  closePricingCompareButton: document.getElementById("closePricingCompareButton"),
   openChecksButton: document.getElementById("openChecksButton"),
   checksModal: document.getElementById("checksModal"),
   closeChecksButton: document.getElementById("closeChecksButton"),
@@ -1800,6 +1803,14 @@ function closeChecksModal() {
   closeModal(elements.checksModal);
 }
 
+function openPricingCompareModal() {
+  openModal(elements.pricingCompareModal);
+}
+
+function closePricingCompareModal() {
+  closeModal(elements.pricingCompareModal);
+}
+
 function openVersionsModal() {
   openModal(elements.versionsModal);
 }
@@ -2577,6 +2588,8 @@ elements.securityDeviceList?.addEventListener("click", handleSecurityListClick);
 elements.securityInstanceList?.addEventListener("click", handleSecurityListClick);
 elements.submitResetButton.addEventListener("click", submitReset);
 elements.clearSelectionButton.addEventListener("click", clearSelection);
+elements.openPricingCompareButton?.addEventListener("click", openPricingCompareModal);
+elements.closePricingCompareButton?.addEventListener("click", closePricingCompareModal);
 elements.openChecksButton?.addEventListener("click", openChecksModal);
 elements.closeChecksButton?.addEventListener("click", closeChecksModal);
 elements.openVersionsButton?.addEventListener("click", openVersionsModal);
@@ -2604,6 +2617,11 @@ elements.downloadAccessCancel?.addEventListener("click", () => {
 elements.downloadsModal?.addEventListener("click", (event) => {
   if (event.target === elements.downloadsModal) {
     closeDownloadsModal();
+  }
+});
+elements.pricingCompareModal?.addEventListener("click", (event) => {
+  if (event.target === elements.pricingCompareModal) {
+    closePricingCompareModal();
   }
 });
 elements.checksModal?.addEventListener("click", (event) => {
@@ -2684,6 +2702,11 @@ document.addEventListener("keydown", (event) => {
 
   if (elements.downloadsModal && !elements.downloadsModal.classList.contains("hidden")) {
     closeDownloadsModal();
+    return;
+  }
+
+  if (elements.pricingCompareModal && !elements.pricingCompareModal.classList.contains("hidden")) {
+    closePricingCompareModal();
     return;
   }
 

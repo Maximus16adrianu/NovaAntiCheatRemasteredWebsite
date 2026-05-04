@@ -832,6 +832,13 @@ select {
   margin-top: 16px;
 }
 
+.pricing-actions {
+  display: flex;
+  gap: 10px;
+  flex-wrap: wrap;
+  margin-top: 14px;
+}
+
 .license-plan-grid {
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));
@@ -1686,6 +1693,10 @@ textarea {
   width: min(100%, 1120px);
 }
 
+.pricing-compare-modal-panel {
+  width: min(100%, 1120px);
+}
+
 .team-modal-panel {
   width: min(100%, 860px);
 }
@@ -1695,6 +1706,87 @@ textarea {
   align-items: flex-start;
   justify-content: space-between;
   gap: 14px;
+}
+
+.license-term-grid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 12px;
+  margin-top: 18px;
+}
+
+.license-term-card {
+  padding: 15px;
+  border: 1px solid var(--border-soft);
+  border-radius: 14px;
+  background: rgba(255, 255, 255, 0.025);
+}
+
+.license-term-card strong {
+  display: block;
+  margin: 5px 0 8px;
+  font-family: "Space Grotesk", sans-serif;
+  font-size: 1.05rem;
+}
+
+.license-term-card p,
+.license-compare-note {
+  margin: 0;
+  color: var(--muted);
+  line-height: 1.55;
+}
+
+.license-compare-table-wrap {
+  margin-top: 16px;
+  border: 1px solid var(--border-soft);
+  border-radius: 14px;
+  overflow-x: auto;
+  background: rgba(255, 255, 255, 0.02);
+}
+
+.license-compare-table {
+  width: 100%;
+  min-width: 780px;
+  border-collapse: collapse;
+}
+
+.license-compare-table th,
+.license-compare-table td {
+  padding: 14px 16px;
+  border-bottom: 1px solid var(--border-soft);
+  text-align: left;
+  vertical-align: top;
+  line-height: 1.5;
+}
+
+.license-compare-table thead th {
+  color: var(--text);
+  font-family: "Space Grotesk", sans-serif;
+  background: rgba(157, 92, 255, 0.09);
+}
+
+.license-compare-table tbody th {
+  width: 22%;
+  color: var(--text);
+  font-weight: 700;
+}
+
+.license-compare-table td {
+  color: var(--muted);
+}
+
+.license-compare-table tr:last-child th,
+.license-compare-table tr:last-child td {
+  border-bottom: 0;
+}
+
+.license-compare-note {
+  margin-top: 14px;
+  padding: 13px 14px;
+  border: 1px solid rgba(130, 223, 180, 0.24);
+  border-radius: 14px;
+  background: rgba(130, 223, 180, 0.06);
+  color: #d7ffe9;
 }
 
 .download-cooldown {
@@ -2092,6 +2184,7 @@ textarea {
   .manage-action-grid,
   .calculator-grid,
   .calculator-results,
+  .license-term-grid,
   .checks-preview-grid,
   .versions-hero,
   .versions-band-grid,
