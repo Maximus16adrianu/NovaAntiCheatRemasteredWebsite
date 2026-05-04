@@ -18,7 +18,7 @@ import java.util.UUID;
 import java.util.concurrent.ConcurrentHashMap;
 
 final class CloudClientSession implements Runnable {
-    private static final long ACTIVE_PLAYER_SLOT_TTL_MS = 1_500L;
+    private static final long ACTIVE_PLAYER_SLOT_TTL_MS = 30_000L;
     private static final DateTimeFormatter TIME_FORMAT = DateTimeFormatter.ofPattern("HH:mm:ss");
     private static final String RESET = "\u001B[0m";
     private static final String BOLD = "\u001B[1m";

@@ -19,6 +19,7 @@ const {
   createSession,
   getSessionByToken,
   reconcileSessions,
+  syncDeviceSlotClaim,
   touchSession
 } = require("./sessions");
 const {
@@ -63,7 +64,12 @@ const TERMINAL_SESSION_CLOSE_REASONS = new Set([
 
 const LICENSE_SELECT = `
   SELECT l.*,
-         (SELECT COUNT(*) FROM license_devices d WHERE d.license_id = l.id AND d.active = 1) AS active_device_count,
+         (SELECT COUNT(DISTINCT s.device_id)
+            FROM service_sessions s
+            JOIN license_devices d ON d.id = s.device_id
+           WHERE s.license_id = l.id
+             AND s.closed_at IS NULL
+             AND d.active = 1) AS active_device_count,
          (SELECT COUNT(*) FROM license_instances i WHERE i.license_id = l.id AND i.active = 1 AND i.slot_claimed = 1) AS active_instance_count,
          (SELECT COUNT(DISTINCT s.instance_id)
             FROM service_sessions s
@@ -194,6 +200,7 @@ function serializeDevice(row) {
     lastSeenAt: row.last_seen_at,
     lastUsername: row.last_username,
     active: Boolean(row.active),
+    slotClaimed: Boolean(row.slot_claimed),
     resetAt: row.reset_at,
     online: (row.open_session_count || 0) > 0,
     openSessionCount: row.open_session_count || 0,
@@ -326,9 +333,9 @@ function listLicenseDevices(licenseId) {
   return getDatabase().prepare(`
     SELECT d.*,
            (SELECT COUNT(*) FROM service_sessions s WHERE s.device_id = d.id AND s.closed_at IS NULL) AS open_session_count
-      FROM license_devices d
+     FROM license_devices d
      WHERE d.license_id = ?
-     ORDER BY d.active DESC, d.last_seen_at DESC
+     ORDER BY d.active DESC, d.slot_claimed DESC, open_session_count DESC, d.last_seen_at DESC
   `).all(licenseId).map(serializeDevice);
 }
 
@@ -548,6 +555,7 @@ function blacklistDeviceForLicense(license, input = {}) {
     db.prepare(`
       UPDATE license_devices
          SET active = 0,
+             slot_claimed = 0,
              reset_at = ?
        WHERE license_id = ?
          AND hwid_hash = ?
@@ -636,6 +644,26 @@ function blacklistInstanceForLicense(license, input = {}) {
   const primaryInstance = instance || matchingInstances[0] || null;
   const matchingIds = matchingInstances.map((row) => row.id).filter(Number.isFinite);
   const placeholders = matchingIds.map(() => "?").join(",");
+  const sessionConditions = [];
+  const sessionParams = [license.id];
+  if (instanceHash) {
+    sessionConditions.push("instance_hash = ?");
+    sessionParams.push(instanceHash);
+  }
+  if (matchingIds.length > 0) {
+    sessionConditions.push(`instance_id IN (${placeholders})`);
+    sessionParams.push(...matchingIds);
+  }
+  const affectedDeviceIds = sessionConditions.length > 0
+    ? db.prepare(`
+      SELECT DISTINCT device_id
+        FROM service_sessions
+       WHERE license_id = ?
+         AND closed_at IS NULL
+         AND device_id IS NOT NULL
+         AND (${sessionConditions.join(" OR ")})
+    `).all(...sessionParams).map((row) => row.device_id).filter(Number.isFinite)
+    : [];
   const timestamp = nowIso();
   const instanceName = normalizeText(input.instanceName || primaryInstance?.instance_name, "Unknown Instance");
   const lastServerName = normalizeText(input.lastServerName || primaryInstance?.last_server_name);
@@ -732,6 +760,10 @@ function blacklistInstanceForLicense(license, input = {}) {
     `).run(timestamp, license.id);
   })();
 
+  for (const deviceId of affectedDeviceIds) {
+    syncDeviceSlotClaim(deviceId);
+  }
+
   logAudit({
     licenseId: license.id,
     deviceId: primaryInstance?.device_id || null,
@@ -799,7 +831,13 @@ function getOverview() {
     totalLicenses: db.prepare("SELECT COUNT(*) AS count FROM licenses").get().count,
     activeLicenses: db.prepare("SELECT COUNT(*) AS count FROM licenses WHERE active = 1").get().count,
     expiredLicenses: db.prepare("SELECT COUNT(*) AS count FROM licenses WHERE expires_at IS NOT NULL AND expires_at <= ?").get(nowIso()).count,
-    activeDevices: db.prepare("SELECT COUNT(*) AS count FROM license_devices WHERE active = 1").get().count,
+    activeDevices: db.prepare(`
+      SELECT COUNT(DISTINCT s.device_id) AS count
+        FROM service_sessions s
+        JOIN license_devices d ON d.id = s.device_id
+       WHERE s.closed_at IS NULL
+         AND d.active = 1
+    `).get().count,
     activeInstances: db.prepare(`
       SELECT COUNT(*) AS count
         FROM license_instances
@@ -827,7 +865,7 @@ function buildManageLicenseState(licenseId) {
   return {
     ok: true,
     license: serializeLicense(license),
-    devices: listLicenseDevices(license.id).filter((device) => device.active),
+    devices: listLicenseDevices(license.id).filter((device) => device.active && device.slotClaimed),
     instances: listLicenseInstances(license.id),
     downloads: listDownloadJarsForLicense(license),
     webhook: getLicenseWebhookConfig(license.id),
@@ -1343,6 +1381,18 @@ function activateLicense(payload = {}) {
 
   const transaction = db.transaction(() => {
     let createdDevice = null;
+    let instance = db.prepare(`
+      SELECT *
+        FROM license_instances
+       WHERE license_id = ?
+         AND (
+           (instance_uuid != '' AND instance_uuid = ?)
+           OR instance_hash = ?
+         )
+       ORDER BY active DESC, last_seen_at DESC, id DESC
+       LIMIT 1
+    `).get(license.id, instanceFingerprint.normalized.instanceUuid, instanceFingerprint.hash);
+
     let device = db.prepare(`
       SELECT *
         FROM license_devices
@@ -1350,14 +1400,27 @@ function activateLicense(payload = {}) {
          AND hwid_hash = ?
     `).get(license.id, fingerprint.hash);
 
+    const ignoredInstanceId = instance?.id || null;
     const activeDeviceCount = db.prepare(`
-      SELECT COUNT(*) AS count
-        FROM license_devices
-       WHERE license_id = ?
-         AND active = 1
-    `).get(license.id).count;
+      SELECT COUNT(DISTINCT s.device_id) AS count
+        FROM service_sessions s
+        JOIN license_devices d ON d.id = s.device_id
+       WHERE s.license_id = ?
+         AND s.closed_at IS NULL
+         AND d.active = 1
+         AND (? IS NULL OR s.instance_id != ?)
+    `).get(license.id, ignoredInstanceId, ignoredInstanceId).count;
 
-    if (!device && activeDeviceCount >= license.max_hwids) {
+    const incomingDeviceAlreadyClaimed = Boolean(device && db.prepare(`
+        SELECT 1
+          FROM service_sessions
+         WHERE license_id = ?
+           AND device_id = ?
+           AND closed_at IS NULL
+         LIMIT 1
+      `).get(license.id, device.id));
+
+    if (!incomingDeviceAlreadyClaimed && activeDeviceCount >= license.max_hwids) {
       throw buildActivationFailure(403, "This license has reached its HWID limit.", "hwid_limit_denied", {
         maxHwids: license.max_hwids,
         activeDeviceCount,
@@ -1376,6 +1439,7 @@ function activateLicense(payload = {}) {
                last_seen_at = ?,
                last_username = ?,
                active = 1,
+               slot_claimed = 1,
                reset_at = NULL
          WHERE id = ?
       `).run(deviceName, deviceFingerprintJson, timestamp, username, device.id);
@@ -1389,24 +1453,13 @@ function activateLicense(payload = {}) {
           first_seen_at,
           last_seen_at,
           last_username,
-          active
-        ) VALUES (?, ?, ?, ?, ?, ?, ?, 1)
+          active,
+          slot_claimed
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, 1, 1)
       `).run(license.id, fingerprint.hash, deviceName, deviceFingerprintJson, timestamp, timestamp, username);
       device = db.prepare("SELECT * FROM license_devices WHERE id = ?").get(insert.lastInsertRowid);
       createdDevice = device;
     }
-
-    let instance = db.prepare(`
-      SELECT *
-        FROM license_instances
-       WHERE license_id = ?
-         AND (
-           (instance_uuid != '' AND instance_uuid = ?)
-           OR instance_hash = ?
-         )
-       ORDER BY active DESC, last_seen_at DESC, id DESC
-       LIMIT 1
-    `).get(license.id, instanceFingerprint.normalized.instanceUuid, instanceFingerprint.hash);
 
     const activeInstanceCount = db.prepare(`
       SELECT COUNT(*) AS count
@@ -1696,7 +1749,9 @@ function heartbeatLicenseSession(payload = {}) {
   const timestamp = nowIso();
   db.prepare(`
     UPDATE license_devices
-       SET last_seen_at = ?
+       SET last_seen_at = ?,
+           active = 1,
+           slot_claimed = 1
      WHERE id = ?
   `).run(timestamp, session.device_id);
   db.prepare(`
@@ -2039,6 +2094,7 @@ function resetLicenseDevices(license, deviceIds = [], options = {}) {
     db.prepare(`
       UPDATE license_devices
          SET active = 0,
+             slot_claimed = 0,
              reset_at = ?
        WHERE license_id = ?
          AND id IN (${placeholders})
@@ -2144,9 +2200,13 @@ function resetLicenseInstances(license, instanceIds = [], options = {}) {
     db.prepare(`
       UPDATE licenses
          SET updated_at = ?
-       WHERE id = ?
+      WHERE id = ?
     `).run(timestamp, license.id);
   })();
+
+  for (const deviceId of [...new Set(instances.map((instance) => instance.device_id).filter(Number.isFinite))]) {
+    syncDeviceSlotClaim(deviceId);
+  }
 
   for (const instance of instances) {
     logAudit({

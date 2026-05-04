@@ -16,6 +16,20 @@ function claimInstanceSlot(instanceId) {
   `).run(instanceId);
 }
 
+function claimDeviceSlot(deviceId) {
+  if (!Number.isFinite(Number(deviceId))) {
+    return;
+  }
+
+  getDatabase().prepare(`
+    UPDATE license_devices
+       SET active = 1,
+           slot_claimed = 1,
+           reset_at = NULL
+     WHERE id = ?
+  `).run(deviceId);
+}
+
 function syncInstanceSlotClaim(instanceId) {
   if (!Number.isFinite(Number(instanceId))) {
     return;
@@ -34,6 +48,26 @@ function syncInstanceSlotClaim(instanceId) {
        SET slot_claimed = ?
      WHERE id = ?
   `).run(openSessionCount > 0 ? 1 : 0, instanceId);
+}
+
+function syncDeviceSlotClaim(deviceId) {
+  if (!Number.isFinite(Number(deviceId))) {
+    return;
+  }
+
+  const db = getDatabase();
+  const openSessionCount = db.prepare(`
+    SELECT COUNT(*) AS count
+      FROM service_sessions
+     WHERE device_id = ?
+       AND closed_at IS NULL
+  `).get(deviceId).count;
+
+  db.prepare(`
+    UPDATE license_devices
+       SET slot_claimed = ?
+     WHERE id = ?
+  `).run(openSessionCount > 0 ? 1 : 0, deviceId);
 }
 
 function createSession({
@@ -81,6 +115,7 @@ function createSession({
     timestamp
   );
 
+  claimDeviceSlot(deviceId);
   claimInstanceSlot(instanceId);
 
   return {
@@ -95,6 +130,14 @@ function closeOpenSessionsForInstance(instanceId, reason = "superseded", closedA
   }
 
   const db = getDatabase();
+  const deviceIds = db.prepare(`
+    SELECT DISTINCT device_id
+      FROM service_sessions
+     WHERE instance_id = ?
+       AND closed_at IS NULL
+       AND device_id IS NOT NULL
+  `).all(instanceId).map((row) => row.device_id);
+
   const result = db.prepare(`
     UPDATE service_sessions
        SET closed_at = ?,
@@ -106,6 +149,9 @@ function closeOpenSessionsForInstance(instanceId, reason = "superseded", closedA
 
   if (result.changes > 0) {
     syncInstanceSlotClaim(instanceId);
+    for (const deviceId of deviceIds) {
+      syncDeviceSlotClaim(deviceId);
+    }
   }
 }
 
@@ -142,7 +188,7 @@ function closeSession(sessionToken, reason = "shutdown", options = {}) {
   const closedAt = options.closedAt || nowIso();
   const staleClosed = options.stale ? 1 : 0;
   const existing = db.prepare(`
-    SELECT instance_id
+    SELECT instance_id, device_id
       FROM service_sessions
      WHERE session_token = ?
        AND closed_at IS NULL
@@ -163,6 +209,7 @@ function closeSession(sessionToken, reason = "shutdown", options = {}) {
 
   if (result.changes > 0) {
     syncInstanceSlotClaim(existing.instance_id);
+    syncDeviceSlotClaim(existing.device_id);
   }
 
   return result.changes > 0;
@@ -172,12 +219,12 @@ function closeAllSessions(reason = "shutdown", options = {}) {
   const db = getDatabase();
   const closedAt = options.closedAt || nowIso();
   const staleClosed = options.stale ? 1 : 0;
-  const instanceIds = db.prepare(`
-    SELECT DISTINCT instance_id
+  const rows = db.prepare(`
+    SELECT DISTINCT instance_id, device_id
       FROM service_sessions
      WHERE closed_at IS NULL
        AND instance_id IS NOT NULL
-  `).all().map((row) => row.instance_id);
+  `).all();
 
   const result = db.prepare(`
     UPDATE service_sessions
@@ -187,8 +234,9 @@ function closeAllSessions(reason = "shutdown", options = {}) {
      WHERE closed_at IS NULL
   `).run(closedAt, reason, staleClosed);
 
-  for (const instanceId of instanceIds) {
-    syncInstanceSlotClaim(instanceId);
+  for (const row of rows) {
+    syncInstanceSlotClaim(row.instance_id);
+    syncDeviceSlotClaim(row.device_id);
   }
 
   return result.changes;
@@ -253,5 +301,6 @@ module.exports = {
   createSession,
   getSessionByToken,
   reconcileSessions,
+  syncDeviceSlotClaim,
   touchSession
 };

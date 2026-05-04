@@ -49,16 +49,16 @@ const LICENSE_PLANS = Object.freeze({
   pro: {
     id: "pro",
     label: "Pro",
-    cloudIncludedSlots: 5,
-    cloudSlotBundleSize: 5,
+    cloudIncludedSlots: 10,
+    cloudSlotBundleSize: 15,
     cloudBasePriceEur: {
-      monthly: 5.0,
-      yearly: 30.0,
+      monthly: 10.0,
+      yearly: 60.0,
       lifetime: 0.0
     },
     cloudBundlePriceEur: {
-      monthly: 5.0,
-      yearly: 30.0,
+      monthly: 10.0,
+      yearly: 60.0,
       lifetime: 0.0
     }
   }
@@ -97,13 +97,13 @@ function normalizeCloudPlayerSlots(licensePlan, value) {
     return 0;
   }
   const parsed = Number.parseInt(value, 10) || plan.cloudIncludedSlots;
-  if (parsed <= 5) {
-    return 5;
-  }
   if (parsed <= 10) {
     return 10;
   }
-  return 15;
+  if (parsed <= 25) {
+    return 25;
+  }
+  return 50;
 }
 
 function roundCurrency(value) {

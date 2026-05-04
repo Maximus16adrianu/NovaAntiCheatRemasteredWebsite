@@ -14,10 +14,10 @@ const LICENSE_PLANS = {
   },
   pro: {
     label: "Pro",
-    cloudIncludedSlots: 5,
-    cloudSlotBundleSize: 5,
-    cloudBase: { monthly: 5, yearly: 30, lifetime: 0 },
-    cloudAddon: { monthly: 5, yearly: 30, lifetime: 0 }
+    cloudIncludedSlots: 10,
+    cloudSlotBundleSize: 15,
+    cloudBase: { monthly: 10, yearly: 60, lifetime: 0 },
+    cloudAddon: { monthly: 10, yearly: 60, lifetime: 0 }
   }
 };
 const TRUSTED_HTML = Symbol("trustedHtml");
@@ -535,14 +535,14 @@ function getFormCloudPlayerSlots() {
   if (plan !== "pro") {
     return 0;
   }
-  const parsed = Number.parseInt(elements.cloudPlayerSlotsField.value || "5", 10);
-  if (parsed <= 5) {
-    return 5;
-  }
+  const parsed = Number.parseInt(elements.cloudPlayerSlotsField.value || "10", 10);
   if (parsed <= 10) {
     return 10;
   }
-  return 15;
+  if (parsed <= 25) {
+    return 25;
+  }
+  return 50;
 }
 
 function updatePlanFields() {
@@ -555,13 +555,13 @@ function updatePlanFields() {
   }
 
   if (getFormLicensePlan() !== "pro") {
-    elements.cloudPlayerSlotsField.value = "5";
+    elements.cloudPlayerSlotsField.value = "10";
     elements.cloudPlayerSlotsField.disabled = true;
     return;
   }
   elements.cloudPlayerSlotsField.disabled = false;
-  if (![5, 10, 15].includes(Number.parseInt(elements.cloudPlayerSlotsField.value || "0", 10))) {
-    elements.cloudPlayerSlotsField.value = "5";
+  if (![10, 25, 50].includes(Number.parseInt(elements.cloudPlayerSlotsField.value || "0", 10))) {
+    elements.cloudPlayerSlotsField.value = "10";
   }
 }
 
@@ -643,7 +643,7 @@ function resetLicenseForm() {
   elements.displayNameField.value = "";
   elements.licenseTypeField.value = "monthly";
   elements.licensePlanField.value = "basic";
-  elements.cloudPlayerSlotsField.value = "5";
+  elements.cloudPlayerSlotsField.value = "10";
   elements.maxSlotsField.value = "1";
   elements.resetIntervalField.value = "30";
   elements.notesField.value = "";
@@ -666,7 +666,7 @@ function populateLicenseForm(license) {
   elements.displayNameField.value = license.displayName || "";
   elements.licenseTypeField.value = license.licenseType || "monthly";
   elements.licensePlanField.value = license.licensePlan || "basic";
-    elements.cloudPlayerSlotsField.value = String(license.cloudPlayerSlots || 5);
+    elements.cloudPlayerSlotsField.value = String(license.cloudPlayerSlots || 10);
   elements.maxSlotsField.value = String(license.maxSlots || 1);
   elements.resetIntervalField.value = String(license.resetIntervalDays || 30);
   elements.notesField.value = license.notes || "";
@@ -771,11 +771,16 @@ function renderDevices(devices) {
 
   const fragment = document.createDocumentFragment();
   for (const device of devices) {
+    const statusBadge = device.online
+      ? badge("Online", "success")
+      : device.active
+        ? badge(device.slotClaimed ? "Active" : "Stored", device.slotClaimed ? "" : "warning")
+        : badge("Reset", "warning");
     const row = document.createElement("tr");
     row.innerHTML = html`
       <td class="pick-cell"><input class="device-selector" type="checkbox" value="${device.id}"></td>
       <td><strong>${cleanLabel(device.deviceName, "Unknown device")}</strong></td>
-      <td>${rawHtml(device.online ? badge("Online", "success") : badge(device.active ? "Active" : "Reset", device.active ? "" : "warning"))}</td>
+      <td>${rawHtml(statusBadge)}</td>
       <td>${String(device.openSessionCount || 0)}</td>
       <td>${device.lastUsername || "unknown"}</td>
       <td>${formatDate(device.firstSeenAt)}</td>

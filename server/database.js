@@ -62,6 +62,7 @@ function initializeDatabase() {
       last_seen_at TEXT NOT NULL,
       last_username TEXT NOT NULL DEFAULT '',
       active INTEGER NOT NULL DEFAULT 1,
+      slot_claimed INTEGER NOT NULL DEFAULT 0,
       reset_at TEXT,
       FOREIGN KEY (license_id) REFERENCES licenses(id) ON DELETE CASCADE,
       UNIQUE (license_id, hwid_hash)
@@ -206,6 +207,7 @@ function initializeDatabase() {
   ensureColumn(db, "licenses", "max_instances", "INTEGER NOT NULL DEFAULT 1");
   ensureColumn(db, "licenses", "webhook_url", "TEXT NOT NULL DEFAULT ''");
   ensureColumn(db, "licenses", "webhook_events_json", "TEXT NOT NULL DEFAULT '{}'");
+  ensureColumn(db, "license_devices", "slot_claimed", "INTEGER NOT NULL DEFAULT 0");
   ensureColumn(db, "service_sessions", "instance_id", "INTEGER");
   ensureColumn(db, "service_sessions", "instance_hash", "TEXT NOT NULL DEFAULT ''");
   ensureColumn(db, "service_sessions", "instance_name", "TEXT NOT NULL DEFAULT ''");
@@ -229,9 +231,22 @@ function initializeDatabase() {
        END,
            cloud_player_slots = CASE
          WHEN lower(trim(license_type)) = 'lifetime' THEN 0
-         WHEN lower(trim(license_plan)) = 'pro' AND cloud_player_slots <= 5 THEN 5
          WHEN lower(trim(license_plan)) = 'pro' AND cloud_player_slots <= 10 THEN 10
-         WHEN lower(trim(license_plan)) = 'pro' THEN 15
+         WHEN lower(trim(license_plan)) = 'pro' AND cloud_player_slots <= 25 THEN 25
+         WHEN lower(trim(license_plan)) = 'pro' THEN 50
+         ELSE 0
+       END
+  `);
+
+  db.exec(`
+    UPDATE license_devices
+       SET slot_claimed = CASE
+         WHEN EXISTS (
+           SELECT 1
+             FROM service_sessions s
+            WHERE s.device_id = license_devices.id
+              AND s.closed_at IS NULL
+         ) THEN 1
          ELSE 0
        END
   `);
@@ -265,6 +280,7 @@ function initializeDatabase() {
     CREATE INDEX IF NOT EXISTS idx_licenses_key ON licenses (license_key);
     CREATE INDEX IF NOT EXISTS idx_licenses_expiry ON licenses (active, expires_at);
     CREATE INDEX IF NOT EXISTS idx_devices_license_active ON license_devices (license_id, active);
+    CREATE INDEX IF NOT EXISTS idx_devices_license_claimed ON license_devices (license_id, active, slot_claimed);
     CREATE INDEX IF NOT EXISTS idx_instances_license_active ON license_instances (license_id, active);
     CREATE INDEX IF NOT EXISTS idx_instances_device_active ON license_instances (device_id, active);
     CREATE INDEX IF NOT EXISTS idx_instances_license_claimed ON license_instances (license_id, active, slot_claimed);

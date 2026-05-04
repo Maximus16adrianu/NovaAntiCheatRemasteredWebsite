@@ -232,13 +232,13 @@ final class LicenseSessionValidator {
         if (!"pro".equals(licensePlan)) {
             return 0;
         }
-        if (value <= 5) {
-            return 5;
-        }
         if (value <= 10) {
             return 10;
         }
-        return 15;
+        if (value <= 25) {
+            return 25;
+        }
+        return 50;
     }
 
     private static String normalize(String value) {

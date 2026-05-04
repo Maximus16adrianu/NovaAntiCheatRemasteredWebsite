@@ -32,10 +32,10 @@ const LICENSE_PLANS = {
   },
   pro: {
     label: "Pro",
-    cloudIncludedSlots: 5,
-    cloudSlotBundleSize: 5,
-    cloudBase: { monthly: 5, yearly: 30, lifetime: 0 },
-    cloudAddon: { monthly: 5, yearly: 30, lifetime: 0 }
+    cloudIncludedSlots: 10,
+    cloudSlotBundleSize: 15,
+    cloudBase: { monthly: 10, yearly: 60, lifetime: 0 },
+    cloudAddon: { monthly: 10, yearly: 60, lifetime: 0 }
   }
 };
 const NOVA_CONSOLE_LINES = [
@@ -2166,14 +2166,14 @@ function getProPlayerCap(planKey) {
   if (planKey !== "pro") {
     return 0;
   }
-  const parsed = Number.parseInt(elements.calcCloudSlots?.value || "5", 10);
-  if (parsed <= 5) {
-    return 5;
-  }
+  const parsed = Number.parseInt(elements.calcCloudSlots?.value || "10", 10);
   if (parsed <= 10) {
     return 10;
   }
-  return 15;
+  if (parsed <= 25) {
+    return 25;
+  }
+  return 50;
 }
 
 function updatePricingFormFields(planKey) {
@@ -2191,13 +2191,13 @@ function updatePricingFormFields(planKey) {
     return;
   }
   if (planKey !== "pro") {
-    elements.calcCloudSlots.value = "5";
+    elements.calcCloudSlots.value = "10";
     elements.calcCloudSlots.disabled = true;
     return;
   }
   elements.calcCloudSlots.disabled = false;
-  if (![5, 10, 15].includes(Number.parseInt(elements.calcCloudSlots.value || "0", 10))) {
-    elements.calcCloudSlots.value = "5";
+  if (![10, 25, 50].includes(Number.parseInt(elements.calcCloudSlots.value || "0", 10))) {
+    elements.calcCloudSlots.value = "10";
   }
 }
 
